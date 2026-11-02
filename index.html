@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="format-detection" content="telephone=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#2b1d2b">
+<meta name="description" content="豌豆镇大冒险 —— 欧美卡通风格肉鸽小游戏，打开链接即玩">
+<title>豌豆镇大冒险 · 肉鸽小游戏</title>
+<style>
+  :root { --ink: #2b1d2b; --cream: #fff6e2; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; padding: 0; height: 100%; overflow: hidden;
+    background: var(--ink);
+    font-family: "Baloo 2", "Fredoka", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
+    /* 微信 iOS 安全区 */
+    -webkit-user-select: none; user-select: none;
+    -webkit-touch-callout: none;
+  }
+  #game {
+    position: fixed; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    touch-action: none;
+    background: radial-gradient(circle at 50% 30%, #4a3350 0%, #2b1d2b 70%);
+  }
+  #game canvas { display: block; touch-action: none; }
+
+  /* 启动兜底界面（引擎未就绪时可见） */
+  #boot {
+    position: fixed; inset: 0; z-index: 10;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    color: var(--cream); text-align: center; padding: 24px;
+    background: radial-gradient(circle at 50% 30%, #4a3350 0%, #2b1d2b 70%);
+    transition: opacity .3s ease;
+  }
+  #boot.hide { opacity: 0; pointer-events: none; }
+  #boot .logo {
+    font-size: 34px; font-weight: 800; letter-spacing: 2px;
+    color: #ffe14d; text-shadow: 0 4px 0 #2b1d2b, 0 8px 18px rgba(0,0,0,.4);
+  }
+  #boot .sub { margin-top: 8px; font-size: 14px; opacity: .7; letter-spacing: 3px; }
+  #boot .spin {
+    margin-top: 28px; width: 42px; height: 42px; border-radius: 50%;
+    border: 5px solid rgba(255,246,226,.25); border-top-color: #6cc24a;
+    animation: spin .8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .boot-error { color: #ffd7d2; line-height: 1.7; }
+  .boot-error h2 { color: #ffe14d; }
+
+  /* 竖屏提示（横屏时给个符号，不强制） */
+  @media (orientation: landscape) and (max-height: 520px) {
+    #rotate-tip { display: block; }
+  }
+  #rotate-tip {
+    display: none; position: fixed; left: 50%; bottom: 10px; transform: translateX(-50%);
+    color: rgba(255,246,226,.6); font-size: 12px; z-index: 11; pointer-events: none;
+  }
+</style>
+</head>
+<body>
+<div id="game"></div>
+
+<div id="boot">
+  <div class="logo">豌豆镇大冒险</div>
+  <div class="sub">PEA TOWN ROGUE</div>
+  <div class="spin"></div>
+</div>
+<div id="rotate-tip">建议竖屏游玩</div>
+
+<!-- 引擎：优先本地，其次 CDN（离线也能跑） -->
+<script src="vendor/phaser.min.js"></script>
+<script>
+  if (!window.Phaser) {
+    document.write('<script src="https://cdn.jsdelivr.net/npm/phaser@3.90.0/dist/phaser.min.js"><\/script>');
+  }
+</script>
+<script>
+  if (!window.Phaser) {
+    document.write('<script src="https://unpkg.com/phaser@3.90.0/dist/phaser.min.js"><\/script>');
+  }
+</script>
+
+<!-- 游戏代码：core 先于 scenes，Upgrade/Result 是被动场景，放最后 -->
+<script src="js/core/data.js"></script>
+<script src="js/core/art.js"></script>
+<script src="js/core/sfx.js"></script>
+<script src="js/core/run.js"></script>
+<script src="js/core/meta.js"></script>
+<script src="js/core/boot.js"></script>
+<script src="js/systems/registry.js"></script>
+<script src="js/ui/skin.js"></script>
+<script src="js/ui/hud.js"></script>
+<script src="js/scenes/Preload.js"></script>
+<script src="js/scenes/Title.js"></script>
+<script src="js/scenes/Game.js"></script>
+<script src="js/ui/upgrade.js"></script>
+<script src="js/ui/pause.js"></script>
+<script src="js/ui/result.js"></script>
+<script src="js/ui/lab.js"></script>
+<script src="js/main.js"></script>
+<script>
+  // 引擎就绪后隐藏启动图
+  (function () {
+    var boot = document.getElementById('boot');
+    var tryHide = setInterval(function () {
+      if (window.Phaser && document.querySelector('#game canvas')) {
+        boot.classList.add('hide');
+        setTimeout(function () { boot.style.display = 'none'; }, 400);
+        clearInterval(tryHide);
+      }
+    }, 120);
+    // 注册表合并要在 Preload 之前
+    if (window.RogueGame && window.RogueGame.Registry) window.RogueGame.Registry.merge();
+  })();
+</script>
+</body>
+</html>
