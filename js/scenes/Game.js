@@ -10,6 +10,7 @@
   var C = R.COLORS;
   var D = R.DATA;
   var ARENA = 1600; // 战场边长
+  var CHAPTER_TINT = { 1: 0xffffff, 2: 0xf0d7b8, 3: 0xbfa8d8 };
 
   function Game() {
     Phaser.Scene.call(this, {
@@ -84,10 +85,46 @@
     this.fxLayer = this.add.container(0, 0).setDepth(30);
 
     // ---- 开始第一关 ----
-    this.time.delayedCall(260, function () { self.nextRoom(); });
+    // 测试模式带 go= 时，跳过默认开局，直接由 applyDevUrlParams 进指定关
+    var _devStart = this.devStartRoom();
+    if (_devStart) {
+      this.time.delayedCall(260, function () {
+        self.clearEntities();
+        self.run.room = _devStart - 1;
+        self.nextRoom();
+        if (self.hud) self.hud.showBanner('测试模式', '直接进入第 ' + _devStart + ' 关', '#ff5c8a');
+      });
+    } else {
+      this.time.delayedCall(260, function () { self.nextRoom(); });
+    }
+
+    // ---- 测试模式：无敌 / 加钱等（跳关已在上面处理） ----
+    this.applyDevUrlParams();
 
     // 数据上报钩子（接后端时用）
     R.emit('run:start', { seed: this.run.seed });
+  };
+
+  /* 测试模式：地址栏 go 参数对应的起始关（普通玩家恒为 0） */
+  Game.prototype.devStartRoom = function () {
+    if (!R.Dev || !R.Dev.ENABLED || !R.Dev.isUnlocked()) return 0;
+    var p = R.Dev.urlParams();
+    if (!p.go) return 0;
+    var n = p.go === 'final' ? 15 : parseInt(p.go, 10);
+    if (!n || n < 1 || n > 15) return 0;
+    return n;
+  };
+
+  /* 测试模式的地址栏快捷参数（普通玩家不会带 ?dev=1，走不到这里） */
+  Game.prototype.applyDevUrlParams = function () {
+    if (!R.Dev || !R.Dev.ENABLED || !R.Dev.hasUrlFlag()) return;
+    if (!R.Dev.isUnlocked()) return;
+    var p = R.Dev.urlParams();
+    this.devGod = p.god === '1' || p.god === 'true';
+    if (p.gold) {
+      var n = parseInt(p.gold, 10) || 0;
+      if (n > 0) { this.run.gold += n; if (R.Meta) R.Meta.addGold(n); }
+    }
   };
 
   /* ---------------- 战场绘制 ---------------- */
@@ -106,6 +143,121 @@
     this.fence.strokeRect(8, 8, ARENA - 16, ARENA - 16);
     this.fence.lineStyle(8, 0xf3e3c3, 1);
     this.fence.strokeRect(14, 14, ARENA - 28, ARENA - 28);
+
+    // 建筑物（静态碰撞体）
+    this.obstacles = this.physics.add.staticGroup();
+    this.obstacleList = [];     // { x, y, r } 圆形近似，用于快速避让判定
+    this.obstacleSprites = [];
+  };
+
+  /* ---------------- 建筑物 / 障碍物 ----------------
+   * 随机摆放，带碰撞体积：
+   *   · 玩家、怪物：物理碰撞（collider）→ 走不过去
+   *   · 子弹：手动判定命中即销毁 → 打不过去
+   * 摆放时保证：不压出生点、建筑之间不重叠、不贴地图边缘。
+   */
+  Game.prototype.buildObstacles = function () {
+    var self = this;
+    var cfg = D.OBSTACLES;
+
+    // 清掉上一关的
+    this.obstacles.clear(true, true);
+    this.obstacleList = [];
+    this.obstacleSprites = [];
+
+    var n = Phaser.Math.Between(cfg.countPerRoom.min, cfg.countPerRoom.max);
+    var types = cfg.types;
+    // 加权池
+    var pool = [];
+    types.forEach(function (t) { for (var i = 0; i < (t.weight || 1); i++) pool.push(t); });
+
+    var px = ARENA / 2, py = ARENA / 2;   // 玩家出生点固定在战场中心
+    var pad = cfg.edgePadding;
+    var placed = 0, guard = 0;
+
+    while (placed < n && guard < 400) {
+      guard++;
+      var t = pool[Math.floor(Math.random() * pool.length)];
+      var hw = t.w / 2, hh = t.h / 2;
+      var x = Phaser.Math.Between(pad + hw, ARENA - pad - hw);
+      var y = Phaser.Math.Between(pad + hh, ARENA - pad - hh);
+
+      // 远离出生点，别把玩家堵在家里
+      var r = Math.max(hw, hh);
+      if (Phaser.Math.Distance.Between(x, y, px, py) < cfg.safeFromSpawn + r) continue;
+
+      // 与已有建筑保持通道间距（用外接圆判定，简单可靠）
+      var ok = true;
+      for (var i = 0; i < this.obstacleList.length; i++) {
+        var o = this.obstacleList[i];
+        if (Phaser.Math.Distance.Between(x, y, o.x, o.y) < o.r + r + cfg.gap) { ok = false; break; }
+      }
+      if (!ok) continue;
+
+      var img = this.obstacles.create(x, y, t.art);
+      img.setDisplaySize(t.w, t.h);
+      img.setDepth(6);                        // 在地面之上、角色之下
+      img.body.setSize(t.w, t.h);
+      img.body.setOffset((img.width - t.w) / 2, (img.height - t.h) / 2);
+      // 静态体：让 physics 用世界坐标刷新碰撞盒
+      img.body.updateFromGameObject();
+      img.refreshBody && img.refreshBody();
+
+      img.obId = t.id;
+      img.setShadow && img.setShadow(0, 0, 0, 0);
+      this.obstacleList.push({ x: x, y: y, r: r, w: t.w, h: t.h, sprite: img });
+      this.obstacleSprites.push(img);
+      placed++;
+    }
+
+    // 玩家 / 怪物 与建筑物碰撞（子弹单独处理）
+    this.obsColliderP = this.physics.add.collider(this.player, this.obstacles);
+    this.obsColliderE = this.physics.add.collider(this.enemies, this.obstacles);
+  };
+
+  /* 某点是否被建筑物占住（带半径 pad） */
+  Game.prototype.blockedAt = function (x, y, pad) {
+    pad = pad === undefined ? 26 : pad;
+    var list = this.obstacleList || [];
+    for (var i = 0; i < list.length; i++) {
+      var o = list[i];
+      if (Phaser.Math.Distance.Between(x, y, o.x, o.y) < o.r + pad) return true;
+    }
+    return false;
+  };
+
+  /* 找一个不在建筑里、离玩家合适的位置；找不到返回 null */
+  Game.prototype.findFreeSpot = function (cx, cy, minR, maxR, triesByRing) {
+    var self = this;
+    for (var i = 0; i < 24; i++) {
+      var ang = Math.random() * Math.PI * 2;
+      var d = minR + Math.random() * (maxR - minR);
+      var x = Phaser.Math.Clamp(cx + Math.cos(ang) * d, 70, ARENA - 70);
+      var y = Phaser.Math.Clamp(cy + Math.sin(ang) * d, 70, ARENA - 70);
+      if (!this.blockedAt(x, y, 34)) return { x: x, y: y };
+    }
+    // 兜底：环绕玩家找一圈空位
+    for (var k = 0; k < 24; k++) {
+      var a2 = (k / 24) * Math.PI * 2;
+      var rr = minR + (maxR - minR) * 0.5;
+      var x2 = Phaser.Math.Clamp(cx + Math.cos(a2) * rr, 70, ARENA - 70);
+      var y2 = Phaser.Math.Clamp(cy + Math.sin(a2) * rr, 70, ARENA - 70);
+      if (!this.blockedAt(x2, y2, 30)) return { x: x2, y: y2 };
+    }
+    return null;
+  };
+
+  /* 子弹是否撞到建筑（撞到就销毁，穿透弹也挡住） */
+  Game.prototype.bulletHitsObstacle = function (b) {
+    var list = this.obstacleList;
+    if (!list || !list.length) return false;
+    var br = b.hitR || 8;
+    for (var i = 0; i < list.length; i++) {
+      var o = list[i];
+      // 矩形近似判定（建筑多为方形），比圆形更贴合
+      if (Math.abs(b.x - o.x) < o.w / 2 + br && Math.abs(b.y - o.y) < o.h / 2 + br) return true;
+    }
+    return false;
   };
 
   Game.prototype.drawArena = function (ch) {
@@ -121,58 +273,96 @@
     }
   };
 
-  /* ---------------- 虚拟摇杆 ---------------- */
+  /* ---------------- 虚拟摇杆 ----------------
+   * 关键：摇杆必须固定在「屏幕坐标」，不能被相机滚动带走。
+   * 所以所有摇杆对象都要 setScrollFactor(0)，
+   * 并且始终用指针的屏幕坐标 p.x / p.y（不是 p.worldX / p.worldY）。
+   * 早期版本的 bug：对象没设 scrollFactor(0)，相机跟随玩家一滚，
+   * 摇杆就飘到屏幕上任意位置，和手指点的地方对不上。
+   */
   Game.prototype.buildStick = function () {
     this.stickBase = this.add.circle(0, 0, 74, 0xffffff, 0.16).setDepth(900)
-      .setStrokeStyle(5, 0xffffff, 0.5).setVisible(false);
-    this.stickKnob = this.add.circle(0, 0, 34, 0xffffff, 0.55).setDepth(901).setVisible(false);
+      .setStrokeStyle(5, 0xffffff, 0.5).setVisible(false).setScrollFactor(0);
+    this.stickKnob = this.add.circle(0, 0, 34, 0xffffff, 0.55).setDepth(901)
+      .setVisible(false).setScrollFactor(0);
   };
 
   Game.prototype.setupInput = function () {
     var self = this;
-    var cam = this.cameras.main;
+    var MAX_R = 70;
+
+    // 限制在屏幕内的安全边距，避免摇杆画到屏幕外
+    function clampToScreen(x, y) {
+      var W = self.scale.width, H = self.scale.height;
+      var m = 30;
+      return {
+        x: Math.max(m, Math.min(W - m, x)),
+        y: Math.max(m, Math.min(H - m, y))
+      };
+    }
+
+    // 摇杆区域判定：避开右上/右下角的 UI 按钮，避免点按钮时冒出摇杆
+    function onUI(x, y) {
+      var W = self.scale.width, H = self.scale.height;
+      // 右下角暂停/音效按钮（x 在 W-100 之后，y 在 H-200 之后）
+      if (x > W - 100 && y > H - 200) return true;
+      // 右上角音效开关（标题页样式，战斗中未用，防御性加上）
+      if (x > W - 100 && y < 100) return true;
+      return false;
+    }
 
     this.input.on('pointerdown', function (p) {
       if (self.paused) return;
       R.Sfx.unlock();
       if (self.stick.active) return;
+      if (onUI(p.x, p.y)) return;          // 点在 UI 按钮上，不开摇杆
+
+      var pos = clampToScreen(p.x, p.y);
       self.stick.active = true;
       self.stick.id = p.id;
-      // 摇杆固定在按下的位置（手机更好用），且不超出相机边界
-      self.stick.baseX = p.x; self.stick.baseY = p.y;
-      self.stick.ox = p.x; self.stick.oy = p.y;
-      self.stickBase.setPosition(p.x, p.y).setVisible(true);
-      self.stickKnob.setPosition(p.x, p.y).setVisible(true);
+      // 摇杆出现在手指按下的地方（屏幕坐标）
+      self.stick.ox = pos.x; self.stick.oy = pos.y;
+      self.stick.x = 0; self.stick.y = 0;
+      self.stickBase.setPosition(pos.x, pos.y).setVisible(true);
+      self.stickKnob.setPosition(pos.x, pos.y).setVisible(true);
     });
 
     this.input.on('pointermove', function (p) {
       if (!self.stick.active || p.id !== self.stick.id) return;
       var dx = p.x - self.stick.ox, dy = p.y - self.stick.oy;
       var len = Math.sqrt(dx * dx + dy * dy);
-      var max = 70;
-      if (len > max) {
-        // 拖动过远时摇杆跟随，避免手指越界
-        self.stick.ox += dx * (1 - max / len);
-        self.stick.oy += dy * (1 - max / len);
+      if (len > MAX_R) {
+        // 拖太远时摇杆基座跟随手指，避免手指越界后方向失真
+        self.stick.ox += dx * (1 - MAX_R / len);
+        self.stick.oy += dy * (1 - MAX_R / len);
+        var c = clampToScreen(self.stick.ox, self.stick.oy);
+        self.stick.ox = c.x; self.stick.oy = c.y;
         dx = p.x - self.stick.ox; dy = p.y - self.stick.oy;
-        len = max;
+        len = Math.sqrt(dx * dx + dy * dy) || 1;
         self.stickBase.setPosition(self.stick.ox, self.stick.oy);
       }
-      self.stick.x = dx / max;
-      self.stick.y = dy / max;
-      self.stickKnob.setPosition(self.stick.ox + dx, self.stick.oy + dy);
+      // 归一化方向（限制最大半径 1）
+      var k = len > MAX_R ? MAX_R / len : 1;
+      self.stick.x = (dx * k) / MAX_R;
+      self.stick.y = (dy * k) / MAX_R;
+      self.stickKnob.setPosition(self.stick.ox + dx * k, self.stick.oy + dy * k);
     });
 
     var endHandler = function (p) {
-      if (!self.stick.active || p.id !== self.stick.id) return;
+      // p 可能是合成对象（gameout），只要 id 对得上就收
+      if (!self.stick.active) return;
+      if (p && p.id !== undefined && p.id !== self.stick.id) return;
       self.stick.active = false;
+      self.stick.id = -1;
       self.stick.x = 0; self.stick.y = 0;
       self.stickBase.setVisible(false);
       self.stickKnob.setVisible(false);
     };
     this.input.on('pointerup', endHandler);
     this.input.on('pointerupoutside', endHandler);
-    this.input.on('gameout', function () { endHandler({ id: self.stick.id }); });
+    this.input.on('gameout', function () { endHandler(null); });
+    // 场景休眠/关闭时兜底收杆
+    this.events.on('pause', function () { endHandler(null); });
   };
 
   /* ---------------- 关卡流程 ---------------- */
@@ -190,11 +380,16 @@
 
     var ch = D.CHAPTERS[chIdx];
     this.chapterDef = ch;
+    // 终局 Boss：最后一章的第 5 关
+    this.isFinalRoom = this.isBossRoom && !!ch.finalBoss;
+    this.bossKey = this.isFinalRoom ? ch.finalBoss : ch.boss;
     this.drawArena(ch);
-    this.gridTex.setTint(ch.id === 1 ? 0xffffff : 0xf0d7b8);
+    this.gridTex.setTint(CHAPTER_TINT[ch.id] || 0xffffff);
 
     // 重置容器
     this.clearEntities();
+    // 本关建筑（每关重新随机摆放）
+    this.buildObstacles();
     this.phase = 'fight';
     this.roomTimer = 0;
     this.spawnTimer = 0;
@@ -215,8 +410,15 @@
     run.roomShown = { label: this.isBossRoom ? '⚠ BOSS 关卡' : label };
 
     if (this.isBossRoom) {
-      this.hud.showBanner('BOSS !', ch.sub + '  ·  ' + D.BOSSES[ch.boss].name, '#ff8a80');
-      R.Sfx.play('boss');
+      var bdef = D.BOSSES[this.bossKey];
+      if (this.isFinalRoom) {
+        this.hud.showBanner('终局 BOSS !', '最后关卡 · ' + bdef.name, '#ff5c8a');
+        R.Sfx.play('boss');
+        R.Sfx.play('explode', 200);
+      } else {
+        this.hud.showBanner('BOSS !', ch.sub + '  ·  ' + bdef.name, '#ff8a80');
+        R.Sfx.play('boss');
+      }
       this.time.delayedCall(900, function () { self.spawnBoss(); });
       // 兜底：1 秒内没刷出 Boss（例如出场被打断）就重试，避免空场卡关
       this.time.delayedCall(1400, function () {
@@ -263,6 +465,12 @@
     this.orbs = [];
     this.dmgTexts.forEach(function (t) { if (t && t.active) t.destroy(); });
     this.dmgTexts = [];
+    // 清掉上一关建筑碰撞器（建筑本身在 buildObstacles 里统一重建）
+    if (this.obsColliderP) { this.physics.world.removeCollider(this.obsColliderP); this.obsColliderP = null; }
+    if (this.obsColliderE) { this.physics.world.removeCollider(this.obsColliderE); this.obsColliderE = null; }
+    if (this.obstacles) this.obstacles.clear(true, true);
+    this.obstacleList = [];
+    this.obstacleSprites = [];
     this.boss = null;
     // 【修复】传送门对象本身也要销毁，否则下一关仍漂浮在场地上
     if (this.portal) { this.portal.destroy(); this.portal = null; }
@@ -501,6 +709,15 @@
     var self = this;
     this.bulletsP.getChildren().forEach(function (b) {
       if (!b.active) return;
+
+      // 撞到建筑物：直接消失（爆裂弹照常引爆）
+      if (self.bulletHitsObstacle(b)) {
+        if (b.explode) self.explode(b.x, b.y, b.explode, b.dmg);
+        self.spark(b.x, b.y, 0xfff2c4);
+        self.killBullet(b);
+        return;
+      }
+
       b.life -= dt;
       if (b.life <= 0) {
         if (b.explode) self.explode(b.x, b.y, b.explode, b.dmg);
@@ -659,16 +876,21 @@
     var cam = this.cameras.main;
     var vw = cam.width / cam.zoom, vh = cam.height / cam.zoom;
     var cx = this.player.x, cy = this.player.y;
-    for (var i = 0; i < 12; i++) {
+    for (var i = 0; i < 18; i++) {
       var ang = Math.random() * Math.PI * 2;
       var rx = (vw / 2 + 80 + Math.random() * 160);
       var ry = (vh / 2 + 80 + Math.random() * 160);
-      var x = Phaser.Math.Clamp(cx + Math.cos(ang) * rx, 60, ARENA - 60);
-      var y = Phaser.Math.Clamp(cy + Math.sin(ang) * ry, 60, ARENA - 60);
+      var x = Phaser.Math.Clamp(cx + Math.cos(ang) * rx, 70, ARENA - 70);
+      var y = Phaser.Math.Clamp(cy + Math.sin(ang) * ry, 70, ARENA - 70);
       // 确保离玩家不太近
-      if (Phaser.Math.Distance.Between(x, y, cx, cy) > Math.min(vw, vh) * 0.5) return { x: x, y: y };
+      if (Phaser.Math.Distance.Between(x, y, cx, cy) <= Math.min(vw, vh) * 0.5) continue;
+      // 不能刷在建筑物里（否则怪物卡在墙里 / 在墙角抖动）
+      if (this.blockedAt(x, y, 30)) continue;
+      return { x: x, y: y };
     }
-    return { x: 100, y: 100 };
+    // 兜底：绕玩家找空位；再不行就在玩家附近
+    var spot = this.findFreeSpot(cx, cy, 240, 420);
+    return spot || { x: Phaser.Math.Clamp(cx + 200, 70, ARENA - 70), y: cy };
   };
 
   Game.prototype.updateEnemies = function (dt) {
@@ -789,6 +1011,12 @@
       b.life -= dt;
       b.angle += 4;
       if (b.life <= 0) { self.resetObj(b, self.bulletsE); return; }
+      // 敌方子弹也会被建筑物挡住（躲在房子后面是有效的掩体）
+      if (self.bulletHitsObstacle(b)) {
+        self.spark(b.x, b.y, 0xffd7a8);
+        self.resetObj(b, self.bulletsE);
+        return;
+      }
       var d = Phaser.Math.Distance.Between(b.x, b.y, p.x, p.y);
       if (d < 30) {
         self.hurtPlayer(b.dmg);
@@ -918,6 +1146,12 @@
       if (m.active && !m.isBoss) self.killEnemySilent(m);
     });
 
+    // 终局 Boss → 直接通关
+    if (e.bossDef && e.bossDef.final) {
+      this.time.delayedCall(900, function () { self.onGameClear(); });
+      return;
+    }
+
     this.time.delayedCall(600, function () {
       if (self.phase === 'upgrade') return;
       self.onBossClear();
@@ -1036,7 +1270,7 @@
   Game.prototype.spawnBoss = function () {
     var self = this;
     var ch = this.chapterDef;
-    var bossKey = ch.boss;
+    var bossKey = this.bossKey || ch.boss;
     var def = D.BOSSES[bossKey];
     var pos = this.ringPosition();
 
@@ -1109,11 +1343,34 @@
       v.y = dy / dist * def.step;
       e.aiTimer -= dt;
       if (e.aiTimer <= 0) {
-        // 跳砸
-        e.aiState = 'jump';
-        e.aiTimer = 0.55;
-        e.jumpTarget = { x: p.x, y: p.y };
-        this.tweens.add({ targets: e, scaleY: 0.8, scaleX: 1.18, duration: 160, yoyo: true, repeat: 1 });
+        // 终局 Boss 有概率改为「冲锋突进」或「召唤小怪」
+        if (def.final && Math.random() < 0.35) {
+          e.aiState = 'charge';
+          e.aiTimer = 0.7;
+          e.chargeDir = { x: dx / dist, y: dy / dist };
+          this.tweens.add({ targets: e, scaleX: 1.2, scaleY: 0.82, duration: 140, yoyo: true, repeat: 2 });
+          R.Sfx.play('dash', 100);
+        } else if (def.final && Math.random() < 0.28) {
+          e.aiState = 'idle';
+          e.aiTimer = def.jumpCd * 1.2;
+          this.bossSummon(e);
+        } else {
+          // 跳砸
+          e.aiState = 'jump';
+          e.aiTimer = 0.55;
+          e.jumpTarget = { x: p.x, y: p.y };
+          this.tweens.add({ targets: e, scaleY: 0.8, scaleX: 1.18, duration: 160, yoyo: true, repeat: 1 });
+        }
+      }
+    } else if (e.aiState === 'charge') {
+      // 冲锋：高速直线突进
+      e.aiTimer -= dt;
+      v.x = e.chargeDir.x * 620;
+      v.y = e.chargeDir.y * 620;
+      if (e.aiTimer <= 0 || e.x <= 20 || e.x >= ARENA - 20 || e.y <= 20 || e.y >= ARENA - 20) {
+        e.aiState = 'idle';
+        e.aiTimer = def.jumpCd * 0.7;
+        this.cameras.main.shake(160, 0.008);
       }
     } else if (e.aiState === 'jump') {
       e.aiTimer -= dt;
@@ -1139,6 +1396,8 @@
         // 半血后狂暴：环形弹幕更频繁
         var rage = e.hp / e.maxHp < 0.5;
         if (Math.random() < (rage ? 0.9 : 0.6)) this.bossRingAttack(e, def.ringCount + (rage ? 8 : 0));
+        // 终局 Boss 残血（30%）时再加速
+        if (def.final && e.hp / e.maxHp < 0.3) e.aiTimer *= 0.6;
       }
     }
 
@@ -1148,6 +1407,27 @@
     e.body.setVelocity(v.x, v.y);
     if (e.shadow) e.shadow.setPosition(e.x, e.y + e.hitR * 0.75);
     this.drawBossBar();
+  };
+
+  /* 终局 Boss：召唤小怪 */
+  Game.prototype.bossSummon = function (e) {
+    var self = this;
+    this.popText(e.x, e.y - e.hitR - 30, '召唤！', '#ff9ad5', 24);
+    R.Sfx.play('boss', 200);
+    var pool = this.chapterDef.pool;
+    var n = 3 + Math.floor(Math.random() * 3);
+    for (var i = 0; i < n; i++) {
+      var ang = (i / n) * Math.PI * 2 + Math.random() * 0.5;
+      var x = Phaser.Math.Clamp(e.x + Math.cos(ang) * 170, 60, ARENA - 60);
+      var y = Phaser.Math.Clamp(e.y + Math.sin(ang) * 170, 60, ARENA - 60);
+      // 别召唤到建筑物里
+      if (this.blockedAt(x, y, 30)) {
+        var sp = this.findFreeSpot(e.x, e.y, 130, 230);
+        if (sp) { x = sp.x; y = sp.y; }
+      }
+      var m = this.spawnEnemy(pool[Math.floor(Math.random() * pool.length)], { pos: { x: x, y: y } });
+      if (m) this.tweens.add({ targets: m, alpha: { from: 0.2, to: 1 }, duration: 300 });
+    }
   };
 
   Game.prototype.ringWave = function (x, y, dmg) {
@@ -1209,6 +1489,7 @@
 
   /* ---------------- 玩家受伤 ---------------- */
   Game.prototype.hurtPlayer = function (dmg) {    var run = this.run;
+    if (this.devGod) return;                      // 测试模式：无敌
     if (this.data.get('invuln') > 0) return;
     if (!run.alive) return;
 
@@ -1314,10 +1595,22 @@
     var self = this;
     var ch = this.chapterDef;
     var isChapterEnd = this.roomIndexInChapter === 5;
-    // 传送门放在玩家附近（保证能看见、走几步就到）
-    var ang = Math.random() * Math.PI * 2;
-    var x = Phaser.Math.Clamp(this.player.x + Math.cos(ang) * 260, 140, ARENA - 140);
-    var y = Phaser.Math.Clamp(this.player.y + Math.sin(ang) * 260, 140, ARENA - 140);
+
+    // 传送门放在玩家附近（保证能看见、走几步就到），但必须避开建筑物
+    var spot = null;
+    for (var i = 0; i < 30 && !spot; i++) {
+      var ang = Math.random() * Math.PI * 2;
+      var d = 200 + Math.random() * 120;
+      var tx = Phaser.Math.Clamp(this.player.x + Math.cos(ang) * d, 150, ARENA - 150);
+      var ty = Phaser.Math.Clamp(this.player.y + Math.sin(ang) * d, 150, ARENA - 150);
+      // 传送门半径约 52，额外留 18 的余量，别贴着墙
+      if (!this.blockedAt(tx, ty, 70)) spot = { x: tx, y: ty };
+    }
+    // 兜底：环绕搜索；实在没有就贴着玩家（保证不卡关）
+    if (!spot) spot = this.findFreeSpot(this.player.x, this.player.y, 180, 340) ||
+      { x: this.player.x + 120, y: this.player.y };
+
+    var x = spot.x, y = spot.y;
     var portal = this.physics.add.image(x, y, 'portal').setDepth(10).setScale(0.2).setAlpha(0);
     portal.body.setAllowGravity(false);
     portal.body.setCircle(52, 12, 12);
@@ -1498,7 +1791,38 @@
     this.hud.refresh(run);
   };
 
-  /* ---------------- 暂停 / 恢复 / 退出 ---------------- */
+  /* ---------------- 通关（击败终局 Boss） ---------------- */
+  Game.prototype.onGameClear = function () {
+    var self = this;
+    if (this.phase === 'won') return;
+    this.phase = 'won';
+    this.run.won = true;
+    this.run.alive = true;
+    this.portalActive = false;
+    this.physics.pause();
+
+    R.emit('run:end', { win: true, room: this.run.room, kills: this.run.kills, time: this.run.time });
+
+    this.cameras.main.flash(600, 255, 240, 180);
+    this.hud.showBanner('通 关 !', '豌豆王倒下了', '#ffe14d');
+    R.Sfx.play('reward');
+    // 烟花
+    for (var i = 0; i < 6; i++) {
+      (function (i) {
+        self.time.delayedCall(i * 160, function () {
+          var a = Math.random() * Math.PI * 2, r = 90 + Math.random() * 140;
+          self.burst(self.player.x + Math.cos(a) * r, self.player.y + Math.sin(a) * r,
+            [0xffd23f, 0x53d7ff, 0xff6b81, 0x8ada67][i % 4], 22);
+          R.Sfx.play('explode', 120);
+        });
+      })(i);
+    }
+
+    this.time.delayedCall(1600, function () {
+      self.scene.pause();
+      self.scene.launch('Result', { run: self.run, win: true });
+    });
+  };
   Game.prototype.pauseGame = function () {
     if (this.paused || this._upgrading || this.phase === 'dead') return;
     this.paused = true;

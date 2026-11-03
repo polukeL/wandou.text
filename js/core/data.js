@@ -6,7 +6,58 @@
   'use strict';
   var D = (R.DATA = {});
 
-  D.VERSION = '0.1.0';
+  D.VERSION = '0.3.0';
+
+  /* ---------------------------------------------------------
+   * 更新日志（改版本号 + 更新简介就改这里）
+   * ---------------------------------------------------------
+   * 每个版本一条，最新的放最前面。
+   *   version : 版本号（显示在标题页）
+   *   date    : 日期（任意文本，建议 YYYY-MM-DD）
+   *   title   : 这一版的一句话主题
+   *   tag     : 可选标签 new / fix / opt / dev
+   *   items   : 本次更新内容，一条一行
+   * 加新版本：在数组最前面 push 一条，并把 D.VERSION 改成对应版本号。
+   * ------------------------------------------------------- */
+  D.CHANGELOG = [
+    {
+      version: '0.3.0', date: '2024-11-02', title: '地图建筑与 UI 布局调试', tag: 'new',
+      items: [
+        '新增随机建筑物：小屋 / 岩石 / 树 / 木箱 / 灌木 / 水井 / 墓碑 / 石柱',
+        '建筑有碰撞体积，人物、怪物、子弹都无法穿过；可以躲在房子后面挡子弹',
+        '刷怪点、传送门、Boss 召唤都会自动避开建筑，不会卡在墙里',
+        '新增 UI 可视化布局调试：测试模式下可拖动 HUD 元素，实时调整位置',
+        '修复手机摇杆位置漂移（摇杆固定在手指按下的位置）'
+      ]
+    },
+    {
+      version: '0.2.0', date: '2024-11-02', title: '终局 Boss · 通关榜 · 商店', tag: 'new',
+      items: [
+        '新增终极大 Boss「豌豆王」：跳跃震地、环形弹幕、召唤小怪、残血狂暴',
+        '新增通关时间榜：与自己历史成绩对比，结算页显示新纪录/慢了多久',
+        '新增头像与头像框，可自由搭配替换',
+        '新增商店：用金币购买头像和头像框，两栏分开摆放',
+        '新增开发者测试模式（跳关 / 刷怪 / 调难度 / 无敌）'
+      ]
+    },
+    {
+      version: '0.1.0', date: '2024-10-31', title: '首个可玩版本', tag: 'new',
+      items: [
+        '三章 15 关，每 5 关一个 Boss',
+        '6 种武器、9 种被动，技能可重复拾取升级至 8 级',
+        '金币系统与研究所永久强化',
+        '护盾、血量上限道具，波次制关卡'
+      ]
+    }
+  ];
+
+  /* 更新日志标签的显示名与配色 */
+  D.CHANGELOG_TAGS = {
+    new: { text: '新内容', color: '#6cc24a' },
+    fix: { text: '修复',   color: '#53b3e8' },
+    opt: { text: '优化',   color: '#f9a825' },
+    dev: { text: '开发',   color: '#9b5de5' }
+  };
 
   /* ---------------------------------------------------------
    * 美术资源表 —— 图集内每一帧的名字（占位图形由代码画出）
@@ -21,6 +72,7 @@
     { id: 'skull',    desc: '骷髅怪（第二章）64x64' },
     { id: 'skull_gold', desc: '黄金骷髅精英 80x80' },
     { id: 'golem',    desc: '石头人 Boss 160x160' },
+    { id: 'king_pea', desc: '终局 Boss 豌豆王 180x180' },
     { id: 'bullet_pea', desc: '玩家子弹（豌豆/饼干屑）24x24' },
     { id: 'bullet_seed', desc: '敌人子弹（果核）24x24' },
     { id: 'pickup_gem', desc: '经验宝石 24x24' },
@@ -82,12 +134,21 @@
     golem_hard: {
       art: 'golem', name: '狂暴石头人', hp: 2600, size: 132, dmg: 3, xp: 200, gold: 120,
       step: 40, jumpCd: 1.7, jumpScale: 7.4, shockwaveDmg: 3, ringCd: 2.8, ringCount: 20
+    },
+    /* 终局 Boss：豌豆王（三阶段） */
+    king_pea: {
+      art: 'king_pea', name: '豌豆王', hp: 5200, size: 150, dmg: 3, xp: 400, gold: 300,
+      step: 46, jumpCd: 1.5, jumpScale: 8.2, shockwaveDmg: 3, ringCd: 2.2, ringCount: 24,
+      final: true
     }
   };
 
   /* ---------------------------------------------------------
    * 地图 / 帧
    * ch = 章节（1..2），每章构成一条"房间链"，末尾是 Boss
+   * ------------------------------------------------------- */
+  /* ---------------------------------------------------------
+   * 章节：最后一章的第 5 关为「终局 Boss」（finalBoss）
    * ------------------------------------------------------- */
   D.CHAPTERS = [
     {
@@ -101,13 +162,92 @@
       floor: ['#C9A67C', '#B8935F'], grid: 'rgba(255,255,255,0.14)',
       pool: ['slime', 'bat', 'charger', 'spitter', 'skull', 'skull'],
       boss: 'golem_hard', roomTime: 30, eliteChance: 0.3
+    },
+    {
+      id: 3, name: '豌豆王座', sub: '终章',
+      floor: ['#4a3350', '#3a2740'], grid: 'rgba(255,255,255,0.10)',
+      pool: ['skull', 'skull', 'spitter', 'charger', 'bat'],
+      boss: 'golem_hard', finalBoss: 'king_pea', roomTime: 30, eliteChance: 0.36
     }
   ];
 
+  /* 通关条件：打到终章第 5 关并击败终局 Boss */
+  D.FINAL = { chapter: 3, roomInChapter: 5 };
+
+  /* ---------------------------------------------------------
+   * 障碍物 / 建筑（后期替换为正式场景物品）
+   * ---------------------------------------------------------
+   * solid: 是否有碰撞体积（true 时人物/怪物/子弹都无法穿过）
+   * w/h  : 逻辑碰撞盒尺寸（图片会自动拉伸到这个尺寸）
+   * 摆放规则（见 Game.buildObstacles）：
+   *   · 不与玩家出生点重叠
+   *   · 建筑之间互不重叠（留出通道）
+   *   · 不贴地图边缘（避免形成死角和卡位）
+   *   · 刷怪 / 生成传送门时会自动避开
+   * ------------------------------------------------------- */
+  D.OBSTACLES = {
+    /* 数量：每关随机生成几个 */
+    countPerRoom: { min: 4, max: 7 },
+    /* 距离玩家出生点的最小安全距离 */
+    safeFromSpawn: 200,
+    /* 距离地图边缘的最小距离 */
+    edgePadding: 150,
+    /* 建筑之间额外留出的通道宽度 */
+    gap: 110,
+    /* 出生点周围的"净空区"半径（刷怪/传送门不会生成在这之内） */
+    spawnClearRadius: 70,
+
+    types: [
+      { id: 'house',    art: 'ob_house',    w: 150, h: 130, weight: 3 },
+      { id: 'rock',     art: 'ob_rock',     w: 110, h: 110, weight: 3 },
+      { id: 'tree',     art: 'ob_tree',     w: 84,  h: 96,  weight: 4 },
+      { id: 'crate',    art: 'ob_crate',    w: 76,  h: 76,  weight: 3 },
+      { id: 'bush',     art: 'ob_bush',     w: 92,  h: 80,  weight: 3 },
+      { id: 'well',     art: 'ob_well',     w: 96,  h: 96,  weight: 2 },
+      { id: 'tomb',     art: 'ob_tomb',     w: 72,  h: 96,  weight: 2 },
+      { id: 'pillar',   art: 'ob_pillar',   w: 76,  h: 118, weight: 2 }
+    ]
+  };
+
+  /* ---------------------------------------------------------
+   * 头像 / 头像框 / 商店
+   * id 与占位图一致；价格单位为跨局金币（Meta.gold）
+   * ------------------------------------------------------- */
+  D.AVATARS = [
+    { id: 'av_pea',     name: '小豌豆',   price: 0,    desc: '默认头像' },
+    { id: 'av_slime',   name: '果冻怪',   price: 120,  desc: '呆萌的紫色果冻' },
+    { id: 'av_bat',     name: '小蝙蝠',   price: 150,  desc: '夜里也精神' },
+    { id: 'av_skull',   name: '骷髅兵',   price: 220,  desc: '其实很怕黑' },
+    { id: 'av_king',    name: '豌豆王',   price: 600,  desc: '通关三次解锁纪念' },
+    { id: 'av_golem',   name: '石头人',   price: 800,  desc: '曾经的噩梦' }
+  ];
+
+  D.FRAMES = [
+    { id: 'fr_basic',  name: '木框',   price: 0,    desc: '默认头像框' },
+    { id: 'fr_leaf',   name: '藤叶框', price: 100,  desc: '绿意盎然' },
+    { id: 'fr_bone',   name: '骨牙框', price: 180,  desc: '矿坑风' },
+    { id: 'fr_gold',   name: '黄金框', price: 400,  desc: '闪亮登场' },
+    { id: 'fr_rainbow',name: '彩虹框', price: 700,  desc: '会缓缓转动' }
+  ];
+
+  /* ---------------------------------------------------------
+   * 文案（欧美卡通口吻，后续可整包替换）
+   * ------------------------------------------------------- */
+
   /* 成长曲线：第 n 个房间的强度 */
+  /* 测试模式下的临时难度覆盖（调试面板改，正常游戏恒为 null）
+   * 形如 { hpMul:1, dmgMul:1, speedMul:1 } —— 只影响当次调试 */
+  D.debugTune = null;
+
   D.scaling = {
-    enemyHp: function (room, ch) { return (1 + room * 0.13) * (1 + (ch - 1) * 0.85); },
-    enemyDmg: function (room, ch) { return (1 + (ch - 1) * 0.5) + Math.floor(room / 4) * 0.5; },
+    enemyHp: function (room, ch) {
+      var v = (1 + room * 0.13) * (1 + (ch - 1) * 0.85);
+      return D.debugTune ? v * (D.debugTune.hpMul || 1) : v;
+    },
+    enemyDmg: function (room, ch) {
+      var v = (1 + (ch - 1) * 0.5) + Math.floor(room / 4) * 0.5;
+      return D.debugTune ? v * (D.debugTune.dmgMul || 1) : v;
+    },
     spawnInterval: function (room) { return Math.max(0.16, 0.72 - room * 0.028); },
     spawnCount: function (room) { return 1 + Math.floor(room / 2); }
   };
@@ -177,5 +317,11 @@
     winSub: '豌豆镇的传说又多了一个',
     loseSub: '种子还没发芽就已经…',
     level: '级'
+  };
+
+  /* 通关榜单（本地；后续可替换为联网接口） */
+  D.LEADERBOARD = {
+    max: 20,
+    title: '通关时间榜'
   };
 })(window.RogueGame = window.RogueGame || {});

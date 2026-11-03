@@ -29,6 +29,7 @@
     var self = this;
     R.Art.generate(this);
     R.Art.generateUI(this);      // UI 占位图
+    R.Art.generateObstacles(this); // 建筑/障碍物占位图（ob_*）
     R.applyRealArt(this);
     // 等待 localStorage 自定义皮肤纹理写入完成再进标题页
     R.UISkin.waitReady(function () { self.scene.start('Title'); });

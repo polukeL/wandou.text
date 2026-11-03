@@ -53,10 +53,13 @@
     var t1 = this.add.text(0, -26, T.title, {
       fontFamily: '"Baloo 2","Fredoka",system-ui,sans-serif', fontSize: '52px', fontStyle: 'bold', color: '#2b1d2b'
     }).setOrigin(0.5);
-    var t2 = this.add.text(0, 26, T.titleEn + '  ·  v' + R.DATA.VERSION, {
+    var t2 = this.add.text(0, 26, T.titleEn, {
       fontFamily: 'system-ui,sans-serif', fontSize: '20px', color: '#7a6a68', letterSpacing: 2
     }).setOrigin(0.5);
     plate.add([t1, t2]);
+
+    // 版本号 + 更新简介入口（点了打开更新日志）
+    this.buildVersionBtn(W / 2, H * 0.60 + 100);
 
     // 开始按钮：优先用 UI 皮肤图（btn_start），否则代码绘制
     var btnY = H * 0.76;
@@ -87,26 +90,43 @@
     btn.on('pointerup', function () { btn.setScale(1); });
 
     // 研究所入口（显示当前金币）
-    var lab = this.add.container(W - 96, btnY);
-    var lg = this.add.graphics();
-    lg.fillStyle(C.outline, 1);  lg.fillRoundedRect(-84, -38, 172, 76, 38);
-    lg.fillStyle(0x9b5de5, 1);   lg.fillRoundedRect(-78, -32, 160, 64, 32);
-    lg.fillStyle(0xb585f0, 1);   lg.fillRoundedRect(-78, -32, 160, 34, 17);
-    lab.add(lg);
-    lab.add(this.add.text(0, -20, '研究所', {
-      fontFamily: '"Baloo 2","Fredoka",system-ui,sans-serif', fontSize: '22px', fontStyle: 'bold', color: '#fff6e2'
-    }).setOrigin(0.5));
-    lab.add(this.add.text(0, 10, '⛃ ' + R.Meta.gold, {
-      fontFamily: 'system-ui,sans-serif', fontSize: '17px', color: '#ffe9a8'
-    }).setOrigin(0.5));
-    lab.setSize(172, 76).setInteractive({ useHandCursor: true });
-    lab.on('pointerdown', function () {
-      R.Sfx.unlock(); R.Sfx.play('click');
-      lab.setScale(0.94);
-      var sc = self;
-      sc.time.delayedCall(90, function () { sc.scene.start('Lab'); });
+    var lab = this.buildSideBtn(W - 92, btnY, '研究所', '⛃ ' + R.Meta.gold, 0x9b5de5, 0xb585f0, 'Lab');
+    // 商店入口
+    this.buildSideBtn(92, btnY, '商 店', '金币购买装扮', 0xf9a825, 0xffc93c, 'Shop');
+
+    // 头像 + 头像框（可替换；点击进商店）
+    var avY = btnY + 108;
+    var av = R.Avatar.add(this, W / 2, avY, 84, { depth: 5 });
+    av.setSize(140, 140).setInteractive({ useHandCursor: true });
+    av.on('pointerdown', function () {
+      R.Sfx.play('click');
+      self.scene.start('Shop', { tab: 'avatar' });
     });
-    lab.on('pointerup', function () { lab.setScale(1); });
+    // 彩虹框缓慢旋转
+    if (R.Meta.frame === 'fr_rainbow') R.Avatar.spinFrame(this, av, 9000);
+    // 昵称条
+    var nameDef = R.Meta.avatarDef();
+    var avName = this.add.text(W / 2, avY + 62, nameDef ? nameDef.name : '豌豆仔', {
+      fontFamily: '"Baloo 2","Fredoka",system-ui,sans-serif', fontSize: '18px', fontStyle: 'bold',
+      color: '#2b1d2b'
+    }).setOrigin(0.5).setAlpha(0.85);
+
+    // 通关时间榜入口
+    var bestT = R.Meta.bestClear();
+    var lbBtn = this.add.container(W / 2, avY + 104);
+    var lbg = this.add.graphics();
+    lbg.fillStyle(C.outline, 0.9); lbg.fillRoundedRect(-108, -19, 216, 38, 19);
+    lbg.fillStyle(0x5a4a68, 1);    lbg.fillRoundedRect(-103, -15, 206, 30, 15);
+    lbBtn.add(lbg);
+    lbBtn.add(this.add.text(-92, 0, '🏆', { fontSize: '17px' }).setOrigin(0, 0.5));
+    lbBtn.add(this.add.text(-64, -1, bestT ? '最佳 ' + R.Meta.fmtTime(bestT.time) : '通关时间榜', {
+      fontFamily: '"Baloo 2","Fredoka",system-ui,sans-serif', fontSize: '17px', fontStyle: 'bold', color: '#ffe14d'
+    }).setOrigin(0, 0.5));
+    lbBtn.setSize(216, 38).setInteractive({ useHandCursor: true });
+    lbBtn.on('pointerdown', function () {
+      R.Sfx.play('click');
+      self.scene.start('Board');
+    });
 
     // 提示
     this.add.text(W / 2, H - 120, R.DATA.TEXT.hint, {
@@ -116,18 +136,8 @@
     // 音效开关
     this.buildSoundToggle(W - 56, 56);
 
-    // UI 自定义入口（🎨）
-    var cus = this.add.container(56, 56);
-    var cg = this.add.graphics();
-    cg.fillStyle(C.outline, 0.85); cg.fillCircle(0, 0, 30);
-    cg.fillStyle(0xfff6e2, 1); cg.fillCircle(0, 0, 24);
-    cus.add(cg);
-    cus.add(this.add.text(0, 0, '🎨', { fontSize: '24px' }).setOrigin(0.5));
-    cus.setSize(60, 60).setInteractive({ useHandCursor: true });
-    cus.on('pointerdown', function () {
-      R.Sfx.play('click');
-      R.UISkin.openCustomizer();
-    });
+    // 测试模式入口：只有地址带 ?dev=1 且密码校验通过才出现（详见 core/devmode.js）
+    if (R.Dev && R.Dev.exposed()) this.buildDevEntry();
 
     // 最佳记录
     var best = 0;
@@ -143,6 +153,101 @@
     this.tweens.add({ targets: plate, scale: 1, alpha: 1, duration: 420, ease: 'Back.out' });
     hero.setAlpha(0);
     this.tweens.add({ targets: hero, alpha: 1, duration: 300 });
+
+    // 测试模式快捷开局：?dev=1&key=xxx&go=15 直接进关，不用手点
+    if (R.Dev && R.Dev.ENABLED && R.Dev.isUnlocked()) {
+      var p = R.Dev.urlParams();
+      if (p.go || p.god || p.gold) {
+        this.time.delayedCall(300, function () { self.scene.start('Game'); });
+      }
+    }
+  };
+
+  /* 版本号 + 更新简介按钮
+   * 内容来自 data.js 的 D.VERSION / D.CHANGELOG，点击进入 Changelog 场景
+   */
+  Title.prototype.buildVersionBtn = function (x, y) {
+    var self = this;
+    var D = R.DATA;
+    var latest = (D.CHANGELOG && D.CHANGELOG[0]) || {};
+    var c = this.add.container(x, y).setDepth(8);
+
+    var label = 'v' + D.VERSION + '  ·  ' + (latest.title || '更新内容') + '  ›';
+
+    // 宽度按文字估算，保证不溢出
+    var estW = Math.max(240, label.length * 15 + 52);
+    var g = this.add.graphics();
+    g.fillStyle(0x2b1d2b, 0.28); g.fillRoundedRect(-estW / 2 + 2, -20, estW, 42, 21);
+    g.fillStyle(0xfff6e2, 0.92); g.fillRoundedRect(-estW / 2, -22, estW, 42, 21);
+    g.lineStyle(2.5, 0xc9b8a0, 0.9);
+    g.strokeRoundedRect(-estW / 2, -22, estW, 42, 21);
+    c.add(g);
+
+    // 小圆点（提示有新内容）
+    c.add(this.add.text(-estW / 2 + 18, -1, '🎉', { fontSize: '17px' }).setOrigin(0.5));
+
+    c.add(this.add.text(6, -1, label, {
+      fontFamily: '"Baloo 2","Fredoka",system-ui,sans-serif',
+      fontSize: '17px', fontStyle: 'bold', color: '#4a3a52'
+    }).setOrigin(0.5));
+
+    c.setSize(estW, 42).setInteractive({ useHandCursor: true });
+    c.on('pointerdown', function () {
+      c.setScale(0.95);
+      R.Sfx.play('click');
+      self.time.delayedCall(70, function () { self.scene.start('Changelog'); });
+    });
+    c.on('pointerup', function () { c.setScale(1); });
+    c.on('pointerout', function () { c.setScale(1); });
+    return c;
+  };
+
+  /* 测试模式入口按钮（仅作者可见：?dev=1 + 密码） */
+  Title.prototype.buildDevEntry = function () {
+    var self = this;
+    var c = this.add.container(56, 56);
+    var g = this.add.graphics();
+    g.fillStyle(0xff5c8a, 0.9); g.fillCircle(0, 0, 30);
+    g.fillStyle(0x2b1d2b, 1);   g.fillCircle(0, 0, 24);
+    c.add(g);
+    c.add(this.add.text(0, 0, '🔧', { fontSize: '24px' }).setOrigin(0.5));
+    c.setSize(60, 60).setInteractive({ useHandCursor: true });
+    c.on('pointerdown', function () {
+      R.Sfx.play('click');
+      R.DevPanel.open(self);
+    });
+    // 已解锁时角标提示
+    if (R.Dev.isUnlocked()) {
+      c.add(this.add.text(22, -22, '✓', {
+        fontSize: '16px', color: '#6cc24a', fontStyle: 'bold'
+      }).setOrigin(0.5));
+    }
+    return c;
+  };
+
+  /* 两侧功能按钮（研究所 / 商店） */
+  Title.prototype.buildSideBtn = function (x, y, label, sub, colA, colB, sceneKey) {
+    var self = this;
+    var c = this.add.container(x, y);
+    var g = this.add.graphics();
+    g.fillStyle(C.outline, 1); g.fillRoundedRect(-84, -40, 168, 80, 40);
+    g.fillStyle(colA, 1);      g.fillRoundedRect(-78, -34, 156, 68, 34);
+    g.fillStyle(colB, 1);      g.fillRoundedRect(-78, -34, 156, 36, 18);
+    c.add(g);
+    c.add(this.add.text(0, -17, label, {
+      fontFamily: '"Baloo 2","Fredoka",system-ui,sans-serif', fontSize: '22px', fontStyle: 'bold', color: '#3a2410'
+    }).setOrigin(0.5));
+    c.add(this.add.text(0, 14, sub, {
+      fontFamily: 'system-ui,sans-serif', fontSize: '15px', color: '#fff3d0'
+    }).setOrigin(0.5).setShadow(0, 1, '#00000066', 2));
+    c.setSize(168, 80).setInteractive({ useHandCursor: true });
+    c.on('pointerdown', function () {
+      R.Sfx.unlock(); R.Sfx.play('click');
+      c.setScale(0.94);
+      self.time.delayedCall(90, function () { self.scene.start(sceneKey); });
+    });
+    c.on('pointerup', function () { c.setScale(1); });
+    return c;
   };
 
   Title.prototype.buildSoundToggle = function (x, y) {

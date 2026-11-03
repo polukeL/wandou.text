@@ -200,6 +200,54 @@
         gr.fillCircle(52, 30, 8); gr.fillCircle(122, 34, 7); gr.fillCircle(90, 26, 6);
       });
 
+      // ---------- 终局 Boss：豌豆王 ----------
+      g(scene, 'king_pea', 184, 184, function (gr) {
+        gr.fillStyle(0x000000, 0.2); gr.fillEllipse(92, 166, 130, 26);
+        // 披风
+        gr.fillStyle(C.outline, 1); gr.fillRoundedRect(20, 74, 144, 92, 30);
+        gr.fillStyle(0x9b5de5, 1);  gr.fillRoundedRect(26, 78, 132, 84, 26);
+        gr.fillStyle(0x6f3fb0, 1);  gr.fillRoundedRect(26, 128, 132, 34, 20);
+        // 身体（豆荚）
+        gr.fillStyle(C.outline, 1); gr.fillRoundedRect(46, 56, 92, 96, 42);
+        gr.fillStyle(C.pea, 1);     gr.fillRoundedRect(52, 62, 80, 84, 36);
+        gr.fillStyle(0x8fd968, 1);  gr.fillRoundedRect(60, 68, 30, 40, 20);
+        // 皇冠
+        gr.fillStyle(C.outline, 1);
+        gr.beginPath();
+        gr.moveTo(52, 56); gr.lineTo(52, 20); gr.lineTo(70, 38); gr.lineTo(92, 12);
+        gr.lineTo(114, 38); gr.lineTo(132, 20); gr.lineTo(132, 56); gr.closePath(); gr.fillPath();
+        gr.fillStyle(0xffd23f, 1);
+        gr.beginPath();
+        gr.moveTo(58, 52); gr.lineTo(58, 28); gr.lineTo(72, 42); gr.lineTo(92, 20);
+        gr.lineTo(112, 42); gr.lineTo(126, 28); gr.lineTo(126, 52); gr.closePath(); gr.fillPath();
+        gr.fillStyle(0xff5c8a, 1); gr.fillCircle(92, 44, 7);
+        gr.fillStyle(0x53d7ff, 1); gr.fillCircle(70, 46, 4.5); gr.fillCircle(114, 46, 4.5);
+        // 眼睛
+        gr.fillStyle(0xffffff, 1);
+        gr.fillCircle(78, 86, 17); gr.fillCircle(110, 86, 17);
+        gr.fillStyle(C.outline, 1);
+        gr.fillCircle(81, 89, 9); gr.fillCircle(107, 89, 9);
+        gr.fillStyle(0xffffff, 0.95); gr.fillCircle(78, 85, 3.5); gr.fillCircle(104, 85, 3.5);
+        // 怒眉
+        gr.lineStyle(7, C.outline, 1);
+        gr.beginPath(); gr.moveTo(62, 66); gr.lineTo(88, 76); gr.strokePath();
+        gr.beginPath(); gr.moveTo(122, 66); gr.lineTo(96, 76); gr.strokePath();
+        // 嘴（獠牙）
+        gr.fillStyle(C.outline, 1);
+        gr.fillRoundedRect(78, 112, 34, 14, 7);
+        gr.fillStyle(0xffffff, 1);
+        gr.fillTriangle(82, 114, 90, 114, 86, 124);
+        gr.fillTriangle(100, 114, 108, 114, 104, 124);
+        // 手臂（举权杖）
+        gr.fillStyle(C.outline, 1); gr.fillCircle(34, 108, 20);
+        gr.fillStyle(C.pea, 1);     gr.fillCircle(34, 108, 15);
+        gr.fillStyle(C.outline, 1); gr.fillCircle(152, 108, 20);
+        gr.fillStyle(C.pea, 1);     gr.fillCircle(152, 108, 15);
+        gr.fillStyle(0x8d5a3b, 1);  gr.fillRoundedRect(148, 40, 8, 62, 4);
+        gr.fillStyle(0xffd23f, 1);  gr.fillCircle(152, 34, 13);
+        gr.fillStyle(0xff5c8a, 1);  gr.fillCircle(152, 34, 6);
+      });
+
       // ---------- 子弹 ----------
       g(scene, 'bullet_pea', 26, 26, function (gr) {
         gr.fillStyle(C.outline, 1); gr.fillCircle(13, 13, 11);
@@ -418,6 +466,157 @@
     },
 
     /* -----------------------------------------------------
+     * 障碍物 / 建筑占位图（ob_*）
+     * 后期换成正式场景物品：放 assets/ob_house.png 等同名文件即可
+     * --------------------------------------------------- */
+    generateObstacles: function (scene) {
+      // 通用：地面阴影 + 粗描边
+      function shadow(gr, x, y, w, h) {
+        gr.fillStyle(0x000000, 0.18); gr.fillEllipse(x, y, w, h);
+      }
+      function outlineRect(gr, x, y, w, h, r, fill, lw) {
+        lw = lw || 6;
+        gr.fillStyle(C.outline, 1);
+        gr.fillRoundedRect(x - lw, y - lw, w + lw * 2, h + lw * 2, r + lw);
+        gr.fillStyle(fill, 1);
+        gr.fillRoundedRect(x, y, w, h, r);
+      }
+
+      // 小屋：木墙 + 蘑菇屋顶 + 门
+      g(scene, 'ob_house', 150, 130, function (gr) {
+        shadow(gr, 75, 118, 120, 24);
+        outlineRect(gr, 22, 48, 106, 68, 10, 0xf0d7b8);
+        // 屋顶（三角）
+        gr.fillStyle(C.outline, 1);
+        gr.beginPath();
+        gr.moveTo(75, -2); gr.lineTo(138, 58); gr.lineTo(12, 58); gr.closePath(); gr.fillPath();
+        gr.fillStyle(C.red, 1);
+        gr.beginPath();
+        gr.moveTo(75, 8); gr.lineTo(130, 54); gr.lineTo(20, 54); gr.closePath(); gr.fillPath();
+        // 门 + 窗
+        gr.fillStyle(C.brown, 1);  gr.fillRoundedRect(58, 78, 34, 38, 6);
+        gr.fillStyle(C.yellow, 1); gr.fillRoundedRect(30, 66, 22, 20, 5);
+        gr.fillStyle(C.outline, 1); gr.fillRoundedRect(30, 66, 22, 20, 5);
+        gr.fillStyle(0x9fd8ff, 1); gr.fillRoundedRect(33, 69, 16, 14, 4);
+      });
+
+      // 岩石
+      g(scene, 'ob_rock', 110, 110, function (gr) {
+        shadow(gr, 55, 98, 92, 22);
+        gr.fillStyle(C.outline, 1);
+        gr.beginPath();
+        gr.moveTo(14, 88); gr.lineTo(28, 34); gr.lineTo(58, 12);
+        gr.lineTo(92, 32); gr.lineTo(100, 82); gr.closePath(); gr.fillPath();
+        gr.fillStyle(C.stone, 1);
+        gr.beginPath();
+        gr.moveTo(22, 84); gr.lineTo(34, 38); gr.lineTo(58, 20);
+        gr.lineTo(86, 38); gr.lineTo(92, 78); gr.closePath(); gr.fillPath();
+        // 高光面
+        gr.fillStyle(0xc3ccd6, 1);
+        gr.beginPath();
+        gr.moveTo(34, 38); gr.lineTo(58, 20); gr.lineTo(66, 52); gr.lineTo(42, 62); gr.closePath(); gr.fillPath();
+        // 苔藓
+        gr.fillStyle(0x7cb342, 0.85);
+        gr.fillEllipse(50, 86, 34, 12);
+      });
+
+      // 树
+      g(scene, 'ob_tree', 84, 96, function (gr) {
+        shadow(gr, 42, 86, 54, 16);
+        // 树干
+        gr.fillStyle(C.outline, 1); gr.fillRoundedRect(34, 52, 16, 36, 6);
+        gr.fillStyle(C.brown, 1);   gr.fillRoundedRect(37, 55, 10, 31, 5);
+        // 树冠（三层）
+        gr.fillStyle(C.outline, 1);
+        gr.fillCircle(42, 34, 30); gr.fillCircle(24, 46, 20); gr.fillCircle(60, 46, 20);
+        gr.fillStyle(0x3f8f2e, 1);
+        gr.fillCircle(42, 34, 25); gr.fillCircle(25, 46, 16); gr.fillCircle(59, 46, 16);
+        gr.fillStyle(0x6cc24a, 1);
+        gr.fillCircle(38, 28, 16); gr.fillCircle(24, 42, 10);
+      });
+
+      // 木箱
+      g(scene, 'ob_crate', 76, 76, function (gr) {
+        shadow(gr, 38, 68, 62, 16);
+        outlineRect(gr, 7, 7, 62, 62, 6, 0xc98a4b);
+        gr.lineStyle(5, C.brown, 1);
+        gr.strokeRect(7, 7, 62, 62);
+        gr.lineStyle(5, C.outline, 1);
+        gr.beginPath(); gr.moveTo(7, 7); gr.lineTo(69, 69); gr.strokePath();
+        gr.beginPath(); gr.moveTo(69, 7); gr.lineTo(7, 69); gr.strokePath();
+        gr.fillStyle(C.outline, 1);
+        gr.fillRect(2, 32, 8, 10); gr.fillRect(66, 32, 8, 10);
+      });
+
+      // 灌木丛
+      g(scene, 'ob_bush', 92, 80, function (gr) {
+        shadow(gr, 46, 68, 74, 16);
+        gr.fillStyle(C.outline, 1);
+        gr.fillCircle(24, 50, 22); gr.fillCircle(48, 40, 26); gr.fillCircle(70, 52, 20);
+        gr.fillStyle(0x4e9c33, 1);
+        gr.fillCircle(24, 50, 17); gr.fillCircle(48, 40, 21); gr.fillCircle(70, 52, 15);
+        gr.fillStyle(0x7ed957, 1);
+        gr.fillCircle(44, 32, 12); gr.fillCircle(22, 44, 8);
+        // 小果子
+        gr.fillStyle(C.red, 1);
+        gr.fillCircle(30, 56, 4); gr.fillCircle(62, 46, 4);
+      });
+
+      // 水井
+      g(scene, 'ob_well', 96, 96, function (gr) {
+        shadow(gr, 48, 84, 74, 18);
+        // 井身
+        gr.fillStyle(C.outline, 1); gr.fillRoundedRect(14, 46, 68, 36, 10);
+        gr.fillStyle(C.stone, 1);   gr.fillRoundedRect(19, 51, 58, 26, 7);
+        // 井口
+        gr.fillStyle(C.outline, 1); gr.fillEllipse(48, 47, 66, 24);
+        gr.fillStyle(0x3d5a7a, 1);  gr.fillEllipse(48, 47, 54, 16);
+        // 木架
+        gr.fillStyle(C.outline, 1);
+        gr.fillRect(20, 12, 9, 34); gr.fillRect(67, 12, 9, 34); gr.fillRect(16, 8, 64, 9);
+        gr.fillStyle(C.brown, 1);
+        gr.fillRect(22, 14, 5, 30); gr.fillRect(69, 14, 5, 30); gr.fillRect(18, 10, 60, 5);
+        // 桶
+        gr.fillStyle(C.outline, 1); gr.fillRoundedRect(38, 24, 20, 18, 4);
+        gr.fillStyle(0xc98a4b, 1);  gr.fillRoundedRect(40, 26, 16, 14, 3);
+      });
+
+      // 墓碑
+      g(scene, 'ob_tomb', 72, 96, function (gr) {
+        shadow(gr, 36, 86, 56, 16);
+        gr.fillStyle(C.outline, 1);
+        gr.fillRoundedRect(12, 20, 48, 64, 22);
+        gr.fillRect(12, 54, 48, 30);
+        gr.fillStyle(0xb8bcc4, 1);
+        gr.fillRoundedRect(17, 25, 38, 56, 18);
+        gr.fillRect(17, 56, 38, 25);
+        // 十字刻痕
+        gr.fillStyle(0x7f858f, 1);
+        gr.fillRect(32, 36, 8, 30); gr.fillRect(24, 44, 24, 8);
+        // 土堆
+        gr.fillStyle(0x6b4a30, 1); gr.fillEllipse(36, 88, 54, 12);
+      });
+
+      // 石柱
+      g(scene, 'ob_pillar', 76, 118, function (gr) {
+        shadow(gr, 38, 108, 58, 16);
+        // 柱身
+        gr.fillStyle(C.outline, 1); gr.fillRect(22, 14, 32, 90);
+        gr.fillStyle(0xd8d2c4, 1);  gr.fillRect(26, 18, 24, 82);
+        // 柱头 / 柱础
+        gr.fillStyle(C.outline, 1);
+        gr.fillRoundedRect(12, 4, 52, 16, 5);
+        gr.fillRoundedRect(12, 98, 52, 16, 5);
+        gr.fillStyle(0xefe8d8, 1);
+        gr.fillRoundedRect(16, 8, 44, 9, 3);
+        gr.fillRoundedRect(16, 102, 44, 9, 3);
+        // 裂纹
+        gr.lineStyle(3, 0xb0a894, 1);
+        gr.beginPath(); gr.moveTo(34, 30); gr.lineTo(42, 48); gr.lineTo(33, 62); gr.strokePath();
+      });
+    },
+
+    /* -----------------------------------------------------
      * UI 皮肤占位图（uiskin_gen_<id>）
      * 优先级：前端上传 > assets/ui/<id>.png > 这里 > 代码绘制
      * --------------------------------------------------- */
@@ -492,6 +691,183 @@
         gr.fillRoundedRect(12, 10, 12, 5, 2.5);
         gr.fillStyle(0x2b9fd7, 1);
         gr.fillRoundedRect(16, 14, 4, 8, 2);
+      });
+
+      /* ---------------- 头像（128x128，圆内绘制） ---------------- */
+      function faceCircle(gr, fill) {
+        gr.fillStyle(0x2b1d2b, 1); gr.fillCircle(64, 64, 62);
+        gr.fillStyle(fill, 1);     gr.fillCircle(64, 64, 56);
+      }
+      function eyes(gr, dx, r, iris) {
+        gr.fillStyle(0xffffff, 1);
+        gr.fillCircle(48 + (dx || 0), 62, r); gr.fillCircle(80 + (dx || 0), 62, r);
+        gr.fillStyle(iris || 0x2b1d2b, 1);
+        gr.fillCircle(50 + (dx || 0), 64, r * 0.55); gr.fillCircle(78 + (dx || 0), 64, r * 0.55);
+        gr.fillStyle(0xffffff, 0.9);
+        gr.fillCircle(47 + (dx || 0), 58, r * 0.24); gr.fillCircle(75 + (dx || 0), 58, r * 0.24);
+      }
+
+      // 小豌豆
+      g(scene, 'av_pea', 128, 128, function (gr) {
+        faceCircle(gr, C.pea);
+        // 豆荚帽
+        gr.fillStyle(0x3f8f2e, 1);
+        gr.beginPath(); gr.arc(64, 52, 54, Math.PI * 1.06, Math.PI * 1.94); gr.fillPath();
+        gr.fillStyle(0x8fd968, 1); gr.fillEllipse(64, 22, 70, 20);
+        gr.fillStyle(0x3f8f2e, 1); gr.fillCircle(98, 16, 7);
+        eyes(gr, 0, 14);
+        // 笑嘴
+        gr.lineStyle(5, 0x2b1d2b, 1);
+        gr.beginPath(); gr.arc(64, 82, 18, 0.2, Math.PI - 0.2); gr.strokePath();
+        gr.fillStyle(0xff9aa8, 0.5);
+        gr.fillCircle(30, 82, 8); gr.fillCircle(98, 82, 8);
+      });
+
+      // 果冻怪
+      g(scene, 'av_slime', 128, 128, function (gr) {
+        faceCircle(gr, 0xb585f0);
+        gr.fillStyle(0x9b5de5, 0.6);
+        gr.fillEllipse(64, 96, 84, 34);
+        eyes(gr, 0, 13, 0x2b1d2b);
+        gr.lineStyle(4, 0x2b1d2b, 1);
+        gr.beginPath(); gr.arc(64, 84, 12, 0.25, Math.PI - 0.25); gr.strokePath();
+        gr.fillStyle(0xffffff, 0.4); gr.fillCircle(44, 34, 10);
+      });
+
+      // 小蝙蝠
+      g(scene, 'av_bat', 128, 128, function (gr) {
+        faceCircle(gr, 0x6f4a8a);
+        // 耳朵
+        gr.fillStyle(0x2b1d2b, 1);
+        gr.fillTriangle(28, 40, 46, 6, 56, 40);
+        gr.fillTriangle(100, 40, 82, 6, 72, 40);
+        gr.fillStyle(0x9b5de5, 1);
+        gr.fillTriangle(32, 36, 45, 14, 52, 36);
+        gr.fillTriangle(96, 36, 83, 14, 76, 36);
+        eyes(gr, 0, 12, 0xe8433c);
+        gr.fillStyle(0xffffff, 1);
+        gr.fillTriangle(56, 84, 62, 96, 68, 84);
+      });
+
+      // 骷髅兵
+      g(scene, 'av_skull', 128, 128, function (gr) {
+        faceCircle(gr, 0xf2ede2);
+        gr.fillStyle(0xd8d0c0, 1);
+        gr.fillEllipse(64, 96, 52, 40);
+        gr.fillStyle(0x2b1d2b, 1);
+        gr.fillCircle(48, 64, 16); gr.fillCircle(80, 64, 16);
+        gr.fillStyle(0xe8433c, 1);
+        gr.fillCircle(48, 64, 9); gr.fillCircle(80, 64, 9);
+        gr.fillStyle(0x2b1d2b, 1);
+        gr.fillTriangle(60, 84, 68, 84, 64, 94);
+        for (var ti = 0; ti < 4; ti++) gr.fillRect(52 + ti * 7, 100, 4, 10);
+      });
+
+      // 豌豆王
+      g(scene, 'av_king', 128, 128, function (gr) {
+        faceCircle(gr, C.pea);
+        gr.fillStyle(0xffd23f, 1);
+        gr.beginPath();
+        gr.moveTo(24, 56); gr.lineTo(24, 12); gr.lineTo(46, 34); gr.lineTo(64, 8);
+        gr.lineTo(82, 34); gr.lineTo(104, 12); gr.lineTo(104, 56); gr.closePath(); gr.fillPath();
+        gr.fillStyle(0x2b1d2b, 1);
+        gr.beginPath();
+        gr.moveTo(24, 56); gr.lineTo(24, 12); gr.lineTo(46, 34); gr.lineTo(64, 8);
+        gr.lineTo(82, 34); gr.lineTo(104, 12); gr.lineTo(104, 56); gr.closePath();
+        gr.lineStyle(5, 0x2b1d2b, 1); gr.strokePath();
+        gr.fillStyle(0xff5c8a, 1); gr.fillCircle(64, 38, 6);
+        eyes(gr, 0, 13);
+        gr.lineStyle(5, 0x2b1d2b, 1);
+        gr.beginPath(); gr.arc(64, 88, 20, 0.15, Math.PI - 0.15); gr.strokePath();
+      });
+
+      // 石头人
+      g(scene, 'av_golem', 128, 128, function (gr) {
+        faceCircle(gr, C.stone);
+        gr.fillStyle(C.stoneD, 1);
+        gr.fillRoundedRect(30, 24, 68, 20, 10);
+        eyes(gr, 0, 13, 0xffe14d);
+        gr.lineStyle(5, 0x2b1d2b, 1);
+        gr.beginPath(); gr.moveTo(46, 90); gr.lineTo(82, 90); gr.strokePath();
+        gr.lineStyle(3, C.stoneD, 1);
+        gr.beginPath(); gr.moveTo(38, 100); gr.lineTo(50, 112); gr.strokePath();
+      });
+
+      /* ---------------- 头像框（144x144，中间镂空 112 直径） ---------------- */
+      g(scene, 'fr_basic', 144, 144, function (gr) {
+        gr.lineStyle(12, 0x2b1d2b, 1); gr.strokeCircle(72, 72, 62);
+        gr.lineStyle(7, 0x8d5a3b, 1);  gr.strokeCircle(72, 72, 62);
+        gr.lineStyle(2, 0xc79a6b, 0.8); gr.strokeCircle(72, 72, 58);
+      });
+
+      g(scene, 'fr_leaf', 144, 144, function (gr) {
+        gr.lineStyle(12, 0x2b1d2b, 1); gr.strokeCircle(72, 72, 62);
+        gr.lineStyle(8, 0x6cc24a, 1);  gr.strokeCircle(72, 72, 62);
+        for (var i = 0; i < 8; i++) {
+          var a = (i / 8) * Math.PI * 2;
+          var lx = 72 + Math.cos(a) * 64, ly = 72 + Math.sin(a) * 64;
+          gr.fillStyle(0x3f8f2e, 1);
+          gr.fillEllipse(lx, ly, 20, 11);
+          gr.fillStyle(0x8fd968, 1);
+          gr.fillEllipse(lx, ly - 1.5, 14, 6);
+        }
+      });
+
+      g(scene, 'fr_bone', 144, 144, function (gr) {
+        gr.lineStyle(12, 0x2b1d2b, 1); gr.strokeCircle(72, 72, 62);
+        gr.lineStyle(8, 0xf2ede2, 1);  gr.strokeCircle(72, 72, 62);
+        for (var i = 0; i < 6; i++) {
+          var a = (i / 6) * Math.PI * 2 - Math.PI / 2;
+          var bx = 72 + Math.cos(a) * 62, by = 72 + Math.sin(a) * 62;
+          gr.fillStyle(0x2b1d2b, 1); gr.fillCircle(bx, by, 10);
+          gr.fillStyle(0xf2ede2, 1); gr.fillCircle(bx, by, 7);
+        }
+      });
+
+      g(scene, 'fr_gold', 144, 144, function (gr) {
+        gr.lineStyle(14, 0x2b1d2b, 1); gr.strokeCircle(72, 72, 62);
+        gr.lineStyle(9, 0xffd23f, 1);  gr.strokeCircle(72, 72, 62);
+        gr.lineStyle(3, 0xfff3b0, 0.9); gr.strokeCircle(72, 72, 58);
+        for (var i = 0; i < 4; i++) {
+          var a = (i / 4) * Math.PI * 2 + 0.4;
+          gr.fillStyle(0xfff3b0, 1);
+          gr.fillCircle(72 + Math.cos(a) * 62, 72 + Math.sin(a) * 62, 6);
+        }
+      });
+
+      g(scene, 'fr_rainbow', 144, 144, function (gr) {
+        var cols = [0xe8433c, 0xf59e30, 0xffd23f, 0x6cc24a, 0x4a9de0, 0x9b5de5];
+        for (var i = 0; i < cols.length; i++) {
+          gr.lineStyle(5, cols[i], 1);
+          var r0 = 56 + i * 4;
+          gr.beginPath();
+          gr.arc(72, 72, r0, (i / cols.length) * Math.PI * 2, ((i + 1) / cols.length) * Math.PI * 2 - 0.06);
+          gr.strokePath();
+        }
+        gr.lineStyle(3, 0x2b1d2b, 0.8); gr.strokeCircle(72, 72, 66);
+      });
+
+      /* ---------------- 商店图标 ---------------- */
+      g(scene, 'icon_shop', 80, 80, function (gr) {
+        gr.fillStyle(0x2b1d2b, 1);  gr.fillRoundedRect(10, 30, 60, 42, 8);
+        gr.fillStyle(0xff6b81, 1);  gr.fillRoundedRect(13, 33, 54, 36, 6);
+        gr.fillStyle(0x2b1d2b, 1);
+        gr.fillTriangle(6, 32, 74, 32, 40, 12);
+        gr.fillStyle(0xffd23f, 1);
+        gr.fillTriangle(9, 30, 71, 30, 40, 15);
+        gr.fillStyle(0xfff6e2, 1);  gr.fillRoundedRect(34, 44, 12, 25, 4);
+      });
+
+      g(scene, 'icon_crown', 80, 80, function (gr) {
+        gr.fillStyle(0x2b1d2b, 1);
+        gr.beginPath();
+        gr.moveTo(8, 58); gr.lineTo(12, 20); gr.lineTo(28, 38); gr.lineTo(40, 12);
+        gr.lineTo(52, 38); gr.lineTo(68, 20); gr.lineTo(72, 58); gr.closePath(); gr.fillPath();
+        gr.fillStyle(0xffd23f, 1);
+        gr.beginPath();
+        gr.moveTo(13, 54); gr.lineTo(16, 26); gr.lineTo(29, 41); gr.lineTo(40, 18);
+        gr.lineTo(51, 41); gr.lineTo(64, 26); gr.lineTo(67, 54); gr.closePath(); gr.fillPath();
+        gr.fillStyle(0xff5c8a, 1); gr.fillCircle(40, 42, 6);
       });
     }
   };

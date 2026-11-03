@@ -36,6 +36,8 @@
     if (!R.checkEngine()) return;
     // 微信内禁止页面滚动/下拉
     document.addEventListener('touchmove', function (e) { e.preventDefault(); }, { passive: false });
+    // 测试模式：先把地址栏 ?dev=1&key=xxx 换成授权（普通玩家无感）
+    if (R.Dev) R.Dev.init();
     if (R.Meta) R.Meta.load();   // 载入研究所存档（金币/永久强化）
     R.boot('game');
     R.emit('boot');

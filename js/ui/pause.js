@@ -43,6 +43,25 @@
       if (self.gameScene) self.gameScene.quitToTitle();
     }, 0xe8633c, 0xf28a5f);
 
+    // 测试面板（仅作者可见：?dev=1 + 密码，详见 core/devmode.js）
+    if (R.Dev && R.Dev.isUnlocked()) {
+      var dp = this.add.container(W / 2, H * 0.70);
+      var dg = this.add.graphics();
+      dg.fillStyle(0x2b1d2b, 1); dg.fillRoundedRect(-110, -26, 220, 52, 26);
+      dg.fillStyle(0x8d4bb8, 1); dg.fillRoundedRect(-105, -22, 210, 44, 22);
+      dp.add(dg);
+      dp.add(this.add.text(-2, -1, '🔧 测试面板', {
+        fontFamily: FONT, fontSize: '24px', fontStyle: 'bold', color: '#fff6e2'
+      }).setOrigin(0.5));
+      dp.setSize(220, 52).setInteractive({ useHandCursor: true });
+      dp.on('pointerdown', function () {
+        R.Sfx.play('click');
+        self.scene.stop();
+        self.scene.launch('DevPanel', { gameScene: self.gameScene });
+        // 保持游戏暂停，测试面板里操作时不会被打
+      });
+    }
+
     // 入场
     this.cameras.main.fadeIn(160, 26, 16, 32);
   };

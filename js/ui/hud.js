@@ -14,59 +14,79 @@
 
   HUD.prototype.build = function () {
     var s = this.scene, W = s.scale.width;
+    var L = R.UILayout;   // 布局表：位置全部从这里读（见 ui/layout.js）
+    // 可拖元素注册表（调试模式用）
+    this.elems = {};
 
     // ---- 左上：生命 ----
-    this.hpRoot = s.add.container(24, 26);
+    var hpPos = L.pos('hp', 24, 26);
+    this.hpRoot = s.add.container(hpPos.x, hpPos.y);
     this.hpBg = s.add.graphics();
     this.hpRoot.add(this.hpBg);
     this.root.add(this.hpRoot);
+    this.elems.hp = this.hpRoot;
 
     // ---- 生命数字 ----
-    this.hpText = s.add.text(84, 26, '6', {
+    var htPos = L.pos('hpText', 84, 26);
+    this.hpText = s.add.text(htPos.x, htPos.y, '6', {
       fontFamily: FONT, fontSize: '30px', fontStyle: 'bold', color: '#ffffff', stroke: '#2b1d2b', strokeThickness: 6
     });
     this.root.add(this.hpText);
+    this.elems.hpText = this.hpText;
 
     // ---- 经验条（屏幕最顶端通栏细条，避免与血量重叠） ----
+    this.xpH = L.size('xp', 12).h;
     this.xpG = s.add.graphics();
     this.root.add(this.xpG);
 
-    this.lvText = s.add.text(26, 86, 'Lv.1', {
+    var lvPos = L.pos('lvText', 26, 86);
+    this.lvText = s.add.text(lvPos.x, lvPos.y, 'Lv.1', {
       fontFamily: FONT, fontSize: '20px', fontStyle: 'bold', color: '#fff6e2', stroke: '#2b1d2b', strokeThickness: 5
     });
     this.root.add(this.lvText);
+    this.elems.lvText = this.lvText;
 
     // ---- 右上：计时 / 杀敌 / 金币 ----
-    this.statText = s.add.text(W - 24, 26, '', {
+    var stPos = L.pos('statText', W - 24, 26);
+    this.statText = s.add.text(stPos.x, stPos.y, '', {
       fontFamily: FONT, fontSize: '22px', color: '#fff6e2', align: 'right', stroke: '#2b1d2b', strokeThickness: 5
     }).setOrigin(1, 0);
     this.root.add(this.statText);
+    this.elems.statText = this.statText;
 
     // ---- 中央上方：关卡进度 ----
-    this.roomText = s.add.text(W / 2, 26, '', {
+    var rmPos = L.pos('roomText', W / 2, 26);
+    this.roomText = s.add.text(rmPos.x, rmPos.y, '', {
       fontFamily: FONT, fontSize: '22px', fontStyle: 'bold', color: '#fff6e2', stroke: '#2b1d2b', strokeThickness: 6
     }).setOrigin(0.5, 0);
     this.root.add(this.roomText);
+    this.elems.roomText = this.roomText;
 
     // ---- 武器槽 ----
     this.slots = s.add.container(0, 0);
     this.root.add(this.slots);
 
     // ---- 关卡提示大字 ----
-    this.banner = s.add.text(W / 2, s.scale.height * 0.34, '', {
+    var bnPos = L.pos('banner', W / 2, s.scale.height * 0.34);
+    this.banner = s.add.text(bnPos.x, bnPos.y, '', {
       fontFamily: FONT, fontSize: '64px', fontStyle: 'bold', color: '#fff6e2',
       stroke: '#2b1d2b', strokeThickness: 12, align: 'center'
     }).setOrigin(0.5).setAlpha(0);
     this.root.add(this.banner);
-    this.bannerSub = s.add.text(W / 2, s.scale.height * 0.34 + 66, '', {
+    this.elems.banner = this.banner;
+
+    var bsPos = L.pos('bannerSub', W / 2, s.scale.height * 0.34 + 66);
+    this.bannerSub = s.add.text(bsPos.x, bsPos.y, '', {
       fontFamily: FONT, fontSize: '26px', color: '#ffe9a8', stroke: '#2b1d2b', strokeThickness: 6, align: 'center'
     }).setOrigin(0.5).setAlpha(0);
     this.root.add(this.bannerSub);
+    this.elems.bannerSub = this.bannerSub;
 
     // ---- 音效按钮（支持皮肤 btn_mute）----
     // 注意：可交互按钮必须直接挂在场景上并 setScrollFactor(0)，
     // 放进 scrollFactor=0 的父容器会导致镜头滚动后点击命中偏移。
-    var mute = s.add.container(W - 56, s.scale.height - 60).setDepth(1000).setScrollFactor(0);
+    var mPos = L.pos('muteBtn', W - 56, s.scale.height - 60);
+    var mute = s.add.container(mPos.x, mPos.y).setDepth(1000).setScrollFactor(0);
     var muteSkin = R.UISkin.apply(s, 'btn_mute', 0, 0, 56, 56);
     if (muteSkin) {
       mute.add(muteSkin);
@@ -81,9 +101,12 @@
     mute.on('pointerdown', function () {
       var on = R.Sfx.toggle(); ml.setText(on ? '🔊' : '🔇'); R.Sfx.play('click');
     });
+    this.elems.muteBtn = mute;
+    this.muteBtn = mute;
 
     // ---- 暂停按钮（支持皮肤 btn_pause） ----
-    var pz = s.add.container(W - 56, s.scale.height - 140).setDepth(1000).setScrollFactor(0);
+    var pPos = L.pos('pauseBtn', W - 56, s.scale.height - 140);
+    var pz = s.add.container(pPos.x, pPos.y).setDepth(1000).setScrollFactor(0);
     var pzSkin = R.UISkin.apply(s, 'btn_pause', 0, 0, 56, 56);
     if (!pzSkin) {
       var pg = s.add.graphics();
@@ -100,6 +123,8 @@
     pz.on('pointerdown', function () {
       if (s.pauseGame) s.pauseGame();
     });
+    this.elems.pauseBtn = pz;
+    this.pauseBtn = pz;
   };
 
   HUD.prototype.refresh = function (run) {
@@ -139,14 +164,16 @@
     }
 
     // 经验条（最顶端通栏，与血量/统计分行，不重叠）
+    var xh = this.xpH || 12;
     this.xpG.clear();
-    this.xpG.fillStyle(0x2b1d2b, 0.55); this.xpG.fillRect(0, 0, W, 12);
+    this.xpG.fillStyle(0x2b1d2b, 0.55); this.xpG.fillRect(0, 0, W, xh);
     var p = Phaser.Math.Clamp(run.xp / run.xpNeed, 0, 1);
     if (p > 0.005) {
-      this.xpG.fillStyle(0x53d9ff, 1); this.xpG.fillRect(0, 0, W * p, 12);
-      this.xpG.fillStyle(0xffffff, 0.35); this.xpG.fillRect(0, 0, W * p, 4);
+      this.xpG.fillStyle(0x53d9ff, 1); this.xpG.fillRect(0, 0, W * p, xh);
+      this.xpG.fillStyle(0xffffff, 0.35); this.xpG.fillRect(0, 0, W * p, Math.max(3, xh * 0.34));
     }
-    this.lvText.setText('Lv.' + run.level).setPosition(26, 86);
+    var lvP = R.UILayout.pos('lvText', 26, 86);
+    this.lvText.setText('Lv.' + run.level).setPosition(lvP.x, lvP.y);
 
     // 统计
     var t = Math.floor(run.time);
