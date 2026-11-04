@@ -37,6 +37,11 @@
     transition: opacity .3s ease;
   }
   #boot.hide { opacity: 0; pointer-events: none; }
+  #boot img#boot-bg {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    object-fit: cover; z-index: -1;
+  }
+  #boot img#boot-logo { max-width: 70%; max-height: 220px; margin-bottom: 6px; }
   #boot .logo {
     font-size: 34px; font-weight: 800; letter-spacing: 2px;
     color: #ffe14d; text-shadow: 0 4px 0 #2b1d2b, 0 8px 18px rgba(0,0,0,.4);
@@ -65,10 +70,50 @@
 <div id="game"></div>
 
 <div id="boot">
-  <div class="logo">豌豆镇大冒险</div>
-  <div class="sub">PEA TOWN ROGUE</div>
-  <div class="spin"></div>
+  <img id="boot-bg" src="assets/ui/boot_bg.png" alt="" style="display:none" data-fallback="assets/boot_bg.png">
+  <img id="boot-logo" src="assets/ui/boot_logo.png" alt="豌豆镇大冒险" style="display:none" data-fallback="assets/boot_logo.png">
+  <div class="logo" id="boot-logo-text">豌豆镇大冒险</div>
+  <div class="sub" id="boot-logo-sub">PEA TOWN ROGUE</div>
+  <div class="spin" id="boot-spin"></div>
 </div>
+<script>
+  // 加载界面自定义图片：assets/ui/boot_bg.png（全屏背景）、assets/ui/boot_logo.png（logo）
+  // 图片存在则自动启用并隐藏对应文字；不存在则保持原样（放图即生效，无需改代码）
+  (function () {
+    var bg = document.getElementById('boot-bg');
+    var logo = document.getElementById('boot-logo');
+    function enableBg() {
+      bg.style.display = 'block';
+      document.getElementById('boot').style.background = 'none';
+    }
+    function enableLogo() {
+      logo.style.display = 'block';
+      document.getElementById('boot-logo-text').style.display = 'none';
+      document.getElementById('boot-logo-sub').style.display = 'none';
+    }
+    bg.addEventListener('load', enableBg);
+    bg.addEventListener('error', function () {
+      // 首选路径失败 → 尝试旧路径（assets/ 根目录）
+      var fb = bg.getAttribute('data-fallback');
+      if (fb && bg.src.indexOf('/' + fb.split('/').pop()) < 0 + 1 && bg.dataset.tried !== '1') {
+        bg.dataset.tried = '1';
+        bg.src = fb;
+      } else {
+        bg.style.display = 'none';
+      }
+    });
+    logo.addEventListener('load', enableLogo);
+    logo.addEventListener('error', function () {
+      var fb = logo.getAttribute('data-fallback');
+      if (fb && logo.dataset.tried !== '1') {
+        logo.dataset.tried = '1';
+        logo.src = fb;
+      } else {
+        logo.style.display = 'none';
+      }
+    });
+  })();
+</script>
 <div id="rotate-tip">建议竖屏游玩</div>
 
 <!-- 引擎：优先本地，其次 CDN（离线也能跑） -->
@@ -114,15 +159,45 @@
   // 引擎就绪后隐藏启动图
   (function () {
     var boot = document.getElementById('boot');
-    var tryHide = setInterval(function () {
+    var done = false;
+    function hideBoot() {
+      if (done || !boot) return;
+      done = true;
+      boot.classList.add('hide');
+      setTimeout(function () { boot.style.display = 'none'; }, 400);
+    }
+    // 注册表合并要在 Preload 之前（放在最前面，避免被隐藏逻辑抢跑）
+    try {
+      if (window.RogueGame && window.RogueGame.Registry) window.RogueGame.Registry.merge();
+    } catch (e) { console.warn('[豌豆镇] Registry.merge 失败', e); }
+
+    // 轮询 canvas 出现
+    var n = 0;
+    var timer = setInterval(function () {
+      n++;
       if (window.Phaser && document.querySelector('#game canvas')) {
-        boot.classList.add('hide');
-        setTimeout(function () { boot.style.display = 'none'; }, 400);
-        clearInterval(tryHide);
+        hideBoot();
+        clearInterval(timer);
+      } else if (n > 120) {          // 约 15 秒兜底：强制隐藏，露出报错信息
+        clearInterval(timer);
+        hideBoot();
+        console.error('[豌豆镇] 引擎 15 秒内未就绪，请按 F12 查看 Console 报错');
       }
     }, 120);
-    // 注册表合并要在 Preload 之前
-    if (window.RogueGame && window.RogueGame.Registry) window.RogueGame.Registry.merge();
+
+    // 双保险：Phaser 的 READY 事件（如果引擎已加载）
+    if (window.Phaser) {
+      document.addEventListener('DOMContentLoaded', function () {
+        setTimeout(function () {
+          if (document.querySelector('#game canvas')) hideBoot();
+        }, 1500);
+      });
+    }
+    // 任何未捕获错误 → 立刻露出内容（否则错误被启动图盖住看不见）
+    window.addEventListener('error', function (ev) {
+      console.error('[豌豆镇] 未捕获错误:', ev.message, ev.filename + ':' + ev.lineno);
+      hideBoot();
+    });
   })();
 </script>
 </body>

@@ -14,27 +14,38 @@
     var W = this.scale.width, H = this.scale.height;
     var T = R.DATA.TEXT;
 
-    // 背景
+    // 背景：优先 assets/ui/title_bg.png，否则用代码绘制的渐变草地
+    var bgSkin = this.add.image(W / 2, H / 2, 'uiskin_file_title_bg')
+      .setDisplaySize(W, H).setDepth(-10);
+    var hasBg = this.textures.exists('uiskin_file_title_bg');
+    if (!hasBg) bgSkin.setVisible(false);
+
     var bg = this.add.graphics();
-    bg.fillGradientStyle(0xbfe36b, 0xbfe36b, 0x7ec850, 0x7ec850, 1);
-    bg.fillRect(0, 0, W, H);
-    // 装饰云朵
-    for (var i = 0; i < 5; i++) {
-      var cx = (i * 173 + 60) % W, cy = 90 + (i % 3) * 70;
-      var cloud = this.add.image(cx, cy, 'blob_soft').setScale(1.6).setAlpha(0.5);
-      cloud.setTint(0xffffff);
-      this.tweens.add({ targets: cloud, x: cx + 30, duration: 3000 + i * 500, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
+    if (!hasBg) {
+      bg.fillGradientStyle(0xbfe36b, 0xbfe36b, 0x7ec850, 0x7ec850, 1);
+      bg.fillRect(0, 0, W, H);
+      // 装饰云朵
+      for (var i = 0; i < 5; i++) {
+        var cx = (i * 173 + 60) % W, cy = 90 + (i % 3) * 70;
+        var cloud = this.add.image(cx, cy, 'blob_soft').setScale(1.6).setAlpha(0.5);
+        cloud.setTint(0xffffff);
+        this.tweens.add({ targets: cloud, x: cx + 30, duration: 3000 + i * 500, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
+      }
     }
 
-    // 地面
-    var ground = this.add.graphics();
-    ground.fillStyle(0x6cae3e, 1);
-    ground.fillEllipse(W / 2, H + 60, W * 1.6, 460);
-    ground.fillStyle(0x8ecc5a, 1);
-    ground.fillEllipse(W / 2, H + 110, W * 1.6, 420);
+    // 地面（有背景图时不画，避免盖住自定义背景）
+    if (!hasBg) {
+      var ground = this.add.graphics();
+      ground.fillStyle(0x6cae3e, 1);
+      ground.fillEllipse(W / 2, H + 60, W * 1.6, 460);
+      ground.fillStyle(0x8ecc5a, 1);
+      ground.fillEllipse(W / 2, H + 110, W * 1.6, 420);
+    }
 
-    // 主角大图
-    var hero = this.add.image(W / 2, H * 0.40, 'player').setScale(2.6);
+    // 主角大图（使用已装备的皮肤纹理，找不到才回退 player）
+    var titleSkin = (R.Meta && R.Meta.skin) || 'skin_default';
+    if (!this.textures.exists(titleSkin)) titleSkin = 'player';
+    var hero = this.add.image(W / 2, H * 0.40, titleSkin).setScale(2.6);
     this.tweens.add({ targets: hero, y: hero.y - 16, duration: 1300, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
     // 周围小怪
     var mobs = [['slime', 0.18, 0.55], ['bat', 0.84, 0.36], ['charger', 0.12, 0.72], ['spitter', 0.88, 0.66]];
@@ -45,11 +56,16 @@
 
     // 标题牌
     var plate = this.add.container(W / 2, H * 0.60);
-    var g = this.add.graphics();
-    g.fillStyle(0x000000, 0.18); g.fillRoundedRect(-248, -66, 500, 140, 34);
-    g.fillStyle(C.outline, 1);   g.fillRoundedRect(-254, -72, 500, 140, 34);
-    g.fillStyle(0xfff6e2, 1);    g.fillRoundedRect(-246, -64, 484, 124, 28);
-    plate.add(g);
+    var plateSkin = R.UISkin.apply(this, 'title_plate', 0, 0, 500, 140);
+    if (plateSkin) {
+      plate.add(plateSkin);
+    } else {
+      var g = this.add.graphics();
+      g.fillStyle(0x000000, 0.18); g.fillRoundedRect(-248, -66, 500, 140, 34);
+      g.fillStyle(C.outline, 1);   g.fillRoundedRect(-254, -72, 500, 140, 34);
+      g.fillStyle(0xfff6e2, 1);    g.fillRoundedRect(-246, -64, 484, 124, 28);
+      plate.add(g);
+    }
     var t1 = this.add.text(0, -26, T.title, {
       fontFamily: '"Baloo 2","Fredoka",system-ui,sans-serif', fontSize: '52px', fontStyle: 'bold', color: '#2b1d2b'
     }).setOrigin(0.5);
@@ -106,7 +122,7 @@
     if (R.Meta.frame === 'fr_rainbow') R.Avatar.spinFrame(this, av, 9000);
     // 昵称条
     var nameDef = R.Meta.avatarDef();
-    var avName = this.add.text(W / 2, avY + 62, nameDef ? nameDef.name : '豌豆仔', {
+    var avName = this.add.text(W / 2, avY + 60, nameDef ? nameDef.name : '豌豆仔', {
       fontFamily: '"Baloo 2","Fredoka",system-ui,sans-serif', fontSize: '18px', fontStyle: 'bold',
       color: '#2b1d2b'
     }).setOrigin(0.5).setAlpha(0.85);
@@ -128,9 +144,9 @@
       self.scene.start('Board');
     });
 
-    // 提示
-    this.add.text(W / 2, H - 120, R.DATA.TEXT.hint, {
-      fontFamily: 'system-ui,sans-serif', fontSize: '20px', color: '#3d5a20'
+    // 提示（在通关榜入口 avY+104+19 ≈ btnY+231 之下，避免重叠）
+    this.add.text(W / 2, H - 52, R.DATA.TEXT.hint, {
+      fontFamily: 'system-ui,sans-serif', fontSize: '19px', color: '#3d5a20'
     }).setOrigin(0.5).setAlpha(0.9);
 
     // 音效开关

@@ -1,0 +1,30 @@
+﻿升级卡图标
+========================================
+
+文件名 = 图标名（不带 icon_ 前缀）。缺图则用代码绘制的占位图标。
+========================================
+
+文件名必须等于下面的 id（全小写，扩展名 .png）：
+
+  pea.png
+  shot.png
+  boomer.png
+  ball.png
+  bubble.png
+  shield.png
+  multi.png
+  pierce.png
+  bounce.png
+  vamp.png
+  sword.png
+  speed.png
+  feet.png
+  heart.png
+  leaf.png
+  magnet.png
+  star.png
+  arrow.png
+  circle.png
+  skull.png
+
+这张说明文件不影响游戏，可以删除。

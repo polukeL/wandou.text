@@ -116,6 +116,16 @@
       wordWrap: { width: 500 }
     }).setOrigin(0.5, 0));
 
+    // 通关解锁新皮肤提示
+    if (clearRes && clearRes.newSkins && clearRes.newSkins.length) {
+      var sk = clearRes.newSkins[0];
+      var tip = this.add.text(0, 168, '🎁 解锁新皮肤「' + sk.name + '」！去商店装备', {
+        fontFamily: R.FONT, fontSize: '18px', fontStyle: 'bold', color: '#c8860a', align: 'center'
+      }).setOrigin(0.5, 0);
+      panel.add(tip);
+      this.tweens.add({ targets: tip, scale: 1.06, duration: 620, yoyo: true, repeat: -1 });
+    }
+
     // 按钮：有皮肤用图片，否则代码绘制
     var btn = this.add.container(0, 236);
     var bskin = R.UISkin.apply(this, 'btn_replay', 0, 0, 268, 78);

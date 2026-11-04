@@ -1,0 +1,12 @@
+﻿特效
+========================================
+
+文件名必须等于下面的 id（全小写，扩展名 .png）：
+
+  bullet_pea.png
+  bullet_seed.png
+  blob.png
+  blob_soft.png
+  pet_ball.png
+
+这张说明文件不影响游戏，可以删除。

@@ -1,0 +1,14 @@
+﻿主角皮肤
+========================================
+
+文件名必须等于下面的 id（全小写，扩展名 .png）：
+
+  skin_default.png
+  skin_night.png
+  skin_ember.png
+  skin_frost.png
+  skin_royal.png
+  skin_angel.png
+  player(兜底).png
+
+这张说明文件不影响游戏，可以删除。

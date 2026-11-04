@@ -1,0 +1,18 @@
+﻿头像与头像框
+========================================
+
+文件名必须等于下面的 id（全小写，扩展名 .png）：
+
+  av_pea.png
+  av_slime.png
+  av_bat.png
+  av_skull.png
+  av_king.png
+  av_golem.png
+  fr_basic.png
+  fr_leaf.png
+  fr_bone.png
+  fr_gold.png
+  fr_rainbow.png
+
+这张说明文件不影响游戏，可以删除。

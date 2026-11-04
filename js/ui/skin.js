@@ -13,6 +13,8 @@
 
   /* 可替换的 UI 组件清单（id 即文件名） */
   var IDS = R.UISkin_IDS = [
+    'title_bg',    // 主界面全屏背景             建议 720x1280
+    'title_plate', // 主界面标题牌底板           建议 500x140
     'btn_start',   // 标题页「开始冒险」按钮      建议 336x80
     'btn_pause',   // 战斗中右下角暂停按钮        建议 56x56
     'btn_resume',  // 暂停菜单「继续闯关」按钮    建议 336x80
@@ -43,12 +45,16 @@
   /* 皮肤是否可用（供调用方决定走图片分支还是绘制分支） */
   function has(id) { return !!keyOf(id); }
 
-  /* ---------------- Preload 阶段加载 ---------------- */
+  /* ---------------- Preload 阶段加载 ----------------
+   * 候选路径：assets/ui/<id>.png（首选） → assets/<id>.png（旧路径兼容）
+   * 真实存在的那个地址由启动前的 R.prepareAssets 统一探测（见 core/boot.js），
+   * 这里只加载确定存在的地址，避免 Phaser「第一个 404 就放弃」的问题。 */
   function loadStored(scene) {
+    var res = R.RESOLVED || {};
     IDS.forEach(function (id) {
-      scene.load.image('uiskin_file_' + id, 'assets/ui/' + id + '.png');
+      var url = res[id];
+      if (url) scene.load.image('uiskin_file_' + id, url);
     });
-    scene.load.on('loaderror', function () {});
   }
 
   function waitReady(cb) { cb(); }

@@ -1,0 +1,21 @@
+﻿界面组件
+========================================
+
+文件名必须等于下面的 id（全小写，扩展名 .png）：
+
+  title_bg.png
+  title_plate.png
+  btn_start.png
+  btn_pause.png
+  btn_resume.png
+  btn_quit.png
+  btn_replay.png
+  btn_mute.png
+  card.png
+  panel.png
+  boot_logo.png
+  boot_bg.png
+  loading_bar_bg.png
+  loading_bar_fill.png
+
+这张说明文件不影响游戏，可以删除。

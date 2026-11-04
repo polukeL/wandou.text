@@ -18,9 +18,12 @@
     // 可拖元素注册表（调试模式用）
     this.elems = {};
 
-    // ---- 左上：生命 ----
-    var hpPos = L.pos('hp', 24, 26);
+    // ---- 左上：生命条 ----
+    var hpPos = L.pos('hp', 24, 40);
+    var hpBarW = L.size('hp', 20, 210).w || 210;
+    var hpBarH = L.size('hp', 20, 210).h || 20;
     this.hpRoot = s.add.container(hpPos.x, hpPos.y);
+    this.hpRoot.setSize(hpBarW, hpBarH + 14);   // 含护盾条高度，布局调试用
     this.hpBg = s.add.graphics();
     this.hpRoot.add(this.hpBg);
     this.root.add(this.hpRoot);
@@ -28,11 +31,18 @@
 
     // ---- 生命数字 ----
     var htPos = L.pos('hpText', 84, 26);
-    this.hpText = s.add.text(htPos.x, htPos.y, '6', {
-      fontFamily: FONT, fontSize: '30px', fontStyle: 'bold', color: '#ffffff', stroke: '#2b1d2b', strokeThickness: 6
+    this.hpText = s.add.text(htPos.x, htPos.y, '100/100', {
+      fontFamily: FONT, fontSize: '26px', fontStyle: 'bold', color: '#ffffff', stroke: '#2b1d2b', strokeThickness: 5
     });
     this.root.add(this.hpText);
     this.elems.hpText = this.hpText;
+
+    // ---- 护盾数值标签（跟在 hpText 右侧） ----
+    this.shieldTag = s.add.text(htPos.x + 110, htPos.y + 4, '', {
+      fontFamily: FONT, fontSize: '20px', fontStyle: 'bold', color: '#53d7ff', stroke: '#2b1d2b', strokeThickness: 5
+    }).setVisible(false);
+    this.root.add(this.shieldTag);
+    this.elems.shieldTag = this.shieldTag;
 
     // ---- 经验条（屏幕最顶端通栏细条，避免与血量重叠） ----
     this.xpH = L.size('xp', 12).h;
@@ -47,7 +57,7 @@
     this.elems.lvText = this.lvText;
 
     // ---- 右上：计时 / 杀敌 / 金币 ----
-    var stPos = L.pos('statText', W - 24, 26);
+    var stPos = L.pos('statText', W - 24, 44);
     this.statText = s.add.text(stPos.x, stPos.y, '', {
       fontFamily: FONT, fontSize: '22px', color: '#fff6e2', align: 'right', stroke: '#2b1d2b', strokeThickness: 5
     }).setOrigin(1, 0);
@@ -55,7 +65,7 @@
     this.elems.statText = this.statText;
 
     // ---- 中央上方：关卡进度 ----
-    var rmPos = L.pos('roomText', W / 2, 26);
+    var rmPos = L.pos('roomText', 400, 84);
     this.roomText = s.add.text(rmPos.x, rmPos.y, '', {
       fontFamily: FONT, fontSize: '22px', fontStyle: 'bold', color: '#fff6e2', stroke: '#2b1d2b', strokeThickness: 6
     }).setOrigin(0.5, 0);
@@ -129,38 +139,51 @@
 
   HUD.prototype.refresh = function (run) {
     var s = this.scene, W = s.scale.width;
+    var L = R.UILayout;
 
-    // 生命
-    var hearts = Math.min(run.maxHp, 8);
-    var per = 7, startX = 42;
+    // ---- 生命：数值血条 ----
+    var hpPos = L.pos('hp', 24, 40);
+    var barW = L.size('hp', 18, 180).w || 180;
+    var barH = L.size('hp', 18, 180).h || 18;
+    var hp = Math.max(0, run.hp), mhp = Math.max(1, run.maxHp);
+    var ratio = Phaser.Math.Clamp(hp / mhp, 0, 1);
+
     this.hpBg.clear();
-    for (var i = 0; i < run.maxHp; i++) {
-      var x = startX + i * 24;
-      if (i < hearts) {
-        var filled = i < run.hp;
-        this.hpBg.fillStyle(filled ? C.red : 0x5c4a5c, filled ? 1 : 0.85);
-        this.hpBg.lineStyle(3, C.outline, 1);
-        this.hpBg.fillCircle(x, 40, per);
-        this.hpBg.strokeCircle(x, 40, per);
-        if (filled) { this.hpBg.fillStyle(0xffffff, 0.55); this.hpBg.fillCircle(x - 2.4, 36, 2.6); }
-      }
+    // 底槽
+    this.hpBg.fillStyle(0x2b1d2b, 0.72);
+    this.hpBg.fillRoundedRect(0, 0, barW, barH, barH / 2);
+    this.hpBg.lineStyle(3, C.outline, 1);
+    this.hpBg.strokeRoundedRect(0, 0, barW, barH, barH / 2);
+    // 血条填充（低血量转橙色警示）
+    if (ratio > 0.003) {
+      var col = ratio > 0.3 ? C.red : 0xff8a3d;
+      this.hpBg.fillStyle(col, 1);
+      this.hpBg.fillRoundedRect(3, 3, Math.max(barH - 6, (barW - 6) * ratio), barH - 6, (barH - 6) / 2);
+      this.hpBg.fillStyle(0xffffff, 0.28);
+      this.hpBg.fillRoundedRect(3, 3, Math.max(barH - 6, (barW - 6) * ratio), Math.max(3, (barH - 6) * 0.4), 4);
     }
-    if (run.maxHp > 8) {
-      this.hpText.setText('x' + run.hp + '/' + run.maxHp).setPosition(startX + 8 * 24 + 6, 24);
-    } else {
-      this.hpText.setText('');
-    }
+    this.hpRoot.setPosition(hpPos.x, hpPos.y);
 
-    // 护盾格（血量上方，蓝色；剩余格数亮起）
-    if (run.shield && run.shield.level > 0) {
-      for (var si = 0; si < run.shield.level; si++) {
-        var sx = startX + si * 17;
-        var on = si < run.shield.hp;
-        this.hpBg.fillStyle(on ? 0x53d7ff : 0x5c4a5c, on ? 1 : 0.75);
-        this.hpBg.fillRoundedRect(sx - 6, 10, 13, 10, 3);
-        this.hpBg.lineStyle(2, C.outline, 1);
-        this.hpBg.strokeRoundedRect(sx - 6, 10, 13, 10, 3);
-      }
+    // ---- 生命数字 hp/maxHp ----
+    var htPos = L.pos('hpText', 216, 34);
+    this.hpText.setText(hp + '/' + mhp)
+      .setPosition(htPos.x, htPos.y)
+      .setColor(ratio > 0.3 ? '#ffffff' : '#ffb0a0');
+
+    // ---- 护盾条（血量条下方，按剩余点数比例） ----
+    var sh = run.shield;
+    if (sh && sh.hp > 0 && sh.max > 0) {
+      var shR = Phaser.Math.Clamp(sh.hp / sh.max, 0, 1);
+      var shH = Math.max(8, barH * 0.5);
+      this.hpBg.fillStyle(0x2b1d2b, 0.72);
+      this.hpBg.fillRoundedRect(0, barH + 5, barW, shH, shH / 2);
+      this.hpBg.fillStyle(0x53d7ff, 1);
+      this.hpBg.fillRoundedRect(2, barH + 7, Math.max(shH - 4, (barW - 4) * shR), shH - 4, (shH - 4) / 2);
+      this.hpBg.lineStyle(2, C.outline, 1);
+      this.hpBg.strokeRoundedRect(0, barH + 5, barW, shH, shH / 2);
+      this.shieldTag.setVisible(true).setText('🛡' + Math.ceil(sh.hp));
+    } else if (this.shieldTag) {
+      this.shieldTag.setVisible(false);
     }
 
     // 经验条（最顶端通栏，与血量/统计分行，不重叠）
@@ -172,7 +195,7 @@
       this.xpG.fillStyle(0x53d9ff, 1); this.xpG.fillRect(0, 0, W * p, xh);
       this.xpG.fillStyle(0xffffff, 0.35); this.xpG.fillRect(0, 0, W * p, Math.max(3, xh * 0.34));
     }
-    var lvP = R.UILayout.pos('lvText', 26, 86);
+    var lvP = L.pos('lvText', 26, 74);
     this.lvText.setText('Lv.' + run.level).setPosition(lvP.x, lvP.y);
 
     // 统计

@@ -1,0 +1,16 @@
+﻿小怪与Boss
+========================================
+
+文件名必须等于下面的 id（全小写，扩展名 .png）：
+
+  slime.png
+  bat.png
+  charger.png
+  spitter.png
+  skull.png
+  skull_gold.png
+  golem.png
+  golem_hard(复用golem).png
+  king_pea.png
+
+这张说明文件不影响游戏，可以删除。

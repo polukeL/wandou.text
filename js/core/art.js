@@ -6,6 +6,13 @@
 (function (R) {
   'use strict';
 
+  /* 升级卡图标名清单（v0.7.6）
+   * 供 boot.js 在启动前探测 assets/icons/<name>.png 是否存在。
+   * 新增图标：这里加名字 + 下面 generateUI 的 icons 表加绘制函数。 */
+  R.UI_ICONS = ['pea', 'shot', 'boomer', 'ball', 'bubble', 'shield', 'multi', 'pierce',
+                'bounce', 'vamp', 'sword', 'speed', 'feet', 'heart', 'leaf', 'magnet',
+                'star', 'arrow', 'circle', 'skull', 'heal'];
+
   // 欧美卡通色板：高饱和 + 粗描边
   var C = R.COLORS = {
     outline: 0x2b1d2b,
@@ -48,33 +55,78 @@
     });
   }
 
+  /* 主角绘制（96×96）：皮肤只需换配色 + 可选配饰
+   * p = { body, vest, head, hat, accent, accessory, hero }
+   *   accessory: 'antenna' | 'crown' | 'goggles' | 'horn' | 'none' */
+  function drawHero(gr, p) {
+    var acc = p.accessory || 'antenna';
+    // 影子
+    gr.fillStyle(0x000000, 0.16); gr.fillEllipse(48, 84, 56, 16);
+    // 身体
+    gr.fillStyle(C.outline, 1); gr.fillEllipse(48, 62, 62, 44);
+    gr.fillStyle(p.body, 1);    gr.fillEllipse(48, 61, 52, 35);
+    // 背心
+    gr.fillStyle(C.outline, 1); gr.fillRoundedRect(30, 54, 36, 26, 10);
+    gr.fillStyle(p.vest, 1);    gr.fillRoundedRect(33, 57, 30, 20, 8);
+    // 头
+    blob(gr, 48, 38, 26, p.head);
+    // 帽子 / 头顶
+    gr.fillStyle(C.outline, 1); gr.fillEllipse(48, 20, 56, 26);
+    gr.fillStyle(p.hat, 1);     gr.fillEllipse(48, 19, 48, 20);
+    // 眼睛 + 笑脸
+    eyes(gr, 48, 36, 10, 8, 1);
+    gr.lineStyle(3.5, C.ink, 1);
+    gr.beginPath(); gr.arc(48, 46, 8, 0.25, Math.PI - 0.25); gr.strokePath();
+    // 腮红
+    gr.fillStyle(p.accent || C.pink, 0.55); gr.fillCircle(30, 44, 5); gr.fillCircle(66, 44, 5);
+
+    // ---- 配饰 ----
+    if (acc === 'antenna') {
+      // 豆荚小尾巴
+      gr.lineStyle(3, C.outline, 1);
+      gr.beginPath(); gr.moveTo(48, 12); gr.lineTo(56, 2); gr.strokePath();
+      gr.fillStyle(p.hat, 1); gr.fillCircle(57, 2, 5);
+      gr.lineStyle(2, C.outline, 1); gr.strokeCircle(57, 2, 5);
+    } else if (acc === 'crown') {
+      gr.fillStyle(C.outline, 1);
+      gr.fillTriangle(34, 16, 40, 2, 48, 16);
+      gr.fillTriangle(48, 16, 56, 2, 62, 16);
+      gr.fillStyle(0xffd23f, 1);
+      gr.fillTriangle(36, 15, 41, 5, 46, 15);
+      gr.fillTriangle(50, 15, 56, 5, 61, 15);
+      gr.fillStyle(0xff5c8a, 1); gr.fillCircle(48, 14, 4);
+    } else if (acc === 'goggles') {
+      // 护目镜（眼睛上方的圆环）
+      gr.lineStyle(4, C.outline, 1);
+      gr.strokeCircle(40, 34, 10); gr.strokeCircle(56, 34, 10);
+      gr.lineStyle(3, 0x9fd8ff, 1);
+      gr.strokeCircle(40, 34, 9); gr.strokeCircle(56, 34, 9);
+      gr.lineStyle(3, C.outline, 1);
+      gr.beginPath(); gr.moveTo(50, 34); gr.lineTo(46, 34); gr.strokePath();
+      gr.beginPath(); gr.moveTo(30, 33); gr.lineTo(22, 30); gr.strokePath();
+      gr.beginPath(); gr.moveTo(66, 33); gr.lineTo(72, 30); gr.strokePath();
+    } else if (acc === 'horn') {
+      gr.fillStyle(C.outline, 1);
+      gr.fillTriangle(30, 18, 24, 0, 42, 12);
+      gr.fillTriangle(66, 18, 72, 0, 54, 12);
+      gr.fillStyle(0xfff0d0, 1);
+      gr.fillTriangle(32, 17, 27, 4, 40, 13);
+      gr.fillTriangle(64, 17, 69, 4, 56, 13);
+    } else if (acc === 'halo') {
+      gr.lineStyle(4, 0xffe14d, 1);
+      gr.strokeEllipse(48, 4, 44, 14);
+    }
+
+    // 小枪
+    gr.fillStyle(C.outline, 1); gr.fillRoundedRect(70, 52, 20, 10, 4);
+    gr.fillStyle(p.gun || C.brown, 1); gr.fillRoundedRect(72, 54, 16, 6, 3);
+  }
   R.Art = {
     /* 生成全部占位贴图 */
     generate: function (scene) {
       // ---------- 玩家：小冒险者（碗豆头 + 背心） ----------
       g(scene, 'player', 96, 96, function (gr) {
-        // 影子
-        gr.fillStyle(0x000000, 0.16); gr.fillEllipse(48, 84, 56, 16);
-        // 身体
-        gr.fillStyle(C.outline, 1); gr.fillEllipse(48, 62, 62, 44);
-        gr.fillStyle(C.blue, 1);    gr.fillEllipse(48, 61, 52, 35);
-        // 背心
-        gr.fillStyle(C.outline, 1); gr.fillRoundedRect(30, 54, 36, 26, 10);
-        gr.fillStyle(C.yellow, 1);  gr.fillRoundedRect(33, 57, 30, 20, 8);
-        // 头
-        blob(gr, 48, 38, 26, C.pea);
-        // 豆荚帽
-        gr.fillStyle(C.outline, 1); gr.fillEllipse(48, 20, 56, 26);
-        gr.fillStyle(C.peaDark, 1); gr.fillEllipse(48, 19, 48, 20);
-        // 眼睛 + 笑脸
-        eyes(gr, 48, 36, 10, 8, 1);
-        gr.lineStyle(3.5, C.ink, 1);
-        gr.beginPath(); gr.arc(48, 46, 8, 0.25, Math.PI - 0.25); gr.strokePath();
-        // 腮红
-        gr.fillStyle(C.pink, 0.55); gr.fillCircle(30, 44, 5); gr.fillCircle(66, 44, 5);
-        // 小枪
-        gr.fillStyle(C.outline, 1); gr.fillRoundedRect(70, 52, 20, 10, 4);
-        gr.fillStyle(C.brown, 1);   gr.fillRoundedRect(72, 54, 16, 6, 3);
+        drawHero(gr, { body: C.blue, vest: C.yellow, head: C.pea, hat: C.peaDark });
       });
 
       // ---------- 果冻怪 ----------
@@ -296,13 +348,51 @@
       });
 
       // ---------- 传送门 ----------
+      // 传送门：石门座 + 旋涡核心
       g(scene, 'portal', 140, 140, function (gr) {
-        gr.fillStyle(0x9b5de5, 0.18); gr.fillCircle(70, 70, 68);
-        gr.fillStyle(0x9b5de5, 0.28); gr.fillCircle(70, 70, 56);
-        gr.lineStyle(9, C.outline, 1); gr.strokeCircle(70, 70, 46);
-        gr.lineStyle(5, 0x8fe3ff, 1); gr.strokeCircle(70, 70, 46);
-        gr.fillStyle(0x63c9ff, 0.55); gr.fillCircle(70, 70, 42);
-        gr.fillStyle(0xffffff, 0.55); gr.fillCircle(58, 58, 12);
+        // 外圈魔法光环（多层透明）
+        gr.fillStyle(0x9b5de5, 0.10); gr.fillCircle(70, 70, 68);
+        gr.fillStyle(0x53d9ff, 0.10); gr.fillCircle(70, 70, 60);
+        // 石门底座（左右两根小石柱 + 底台）
+        gr.fillStyle(C.outline, 1);
+        gr.fillRoundedRect(18, 96, 20, 34, 6); gr.fillRoundedRect(102, 96, 20, 34, 6);
+        gr.fillRoundedRect(10, 122, 120, 14, 7);
+        gr.fillStyle(0x9aa3ad, 1);
+        gr.fillRoundedRect(22, 100, 12, 26, 5); gr.fillRoundedRect(106, 100, 12, 26, 5);
+        gr.fillStyle(0xb8c0c8, 1); gr.fillRoundedRect(16, 126, 108, 7, 4);
+        // 旋涡外环（粗描边门框）
+        gr.lineStyle(10, C.outline, 1);  gr.strokeCircle(70, 66, 44);
+        gr.lineStyle(6, 0x8a5fd6, 1);    gr.strokeCircle(70, 66, 44);
+        // 漩涡内部：三层渐变（旋涡臂在 portal_swirl 贴图上单独旋转）
+        gr.fillStyle(0x2a1d4a, 1);     gr.fillCircle(70, 66, 40);
+        gr.fillStyle(0x4a2f8a, 0.85);  gr.fillCircle(70, 66, 33);
+        gr.fillStyle(0x8a5fd6, 0.8);   gr.fillCircle(70, 66, 24);
+        gr.fillStyle(0xc9a8ff, 0.9);   gr.fillCircle(70, 66, 13);
+        gr.fillStyle(0xffffff, 0.95);  gr.fillCircle(70, 66, 5);
+        // 底部符文光点
+        gr.fillStyle(0x8fe3ff, 0.9);
+        gr.fillCircle(36, 130, 4); gr.fillCircle(70, 132, 4.5); gr.fillCircle(104, 130, 4);
+      });
+
+      /* portal_swirl：传送门中间的漩涡（独立贴图，游戏里单独旋转，
+       * 石座/门框保持静止；可放 assets/portal_swirl.png 覆盖） */
+      g(scene, 'portal_swirl', 96, 96, function (gr) {
+        // 漩涡本体：三层渐变
+        gr.fillStyle(0x2a1d4a, 1);     gr.fillCircle(48, 48, 44);
+        gr.fillStyle(0x4a2f8a, 0.85);  gr.fillCircle(48, 48, 36);
+        gr.fillStyle(0x8a5fd6, 0.8);   gr.fillCircle(48, 48, 26);
+        gr.fillStyle(0xc9a8ff, 0.9);   gr.fillCircle(48, 48, 14);
+        gr.fillStyle(0xffffff, 0.95);  gr.fillCircle(48, 48, 5);
+        // 旋涡臂（旋转弧线）
+        gr.lineStyle(6, 0xc9a8ff, 0.85);
+        gr.beginPath(); gr.arc(48, 48, 33, 0.3, 1.7); gr.strokePath();
+        gr.beginPath(); gr.arc(48, 48, 21, 3.4, 4.8); gr.strokePath();
+        gr.lineStyle(5, 0x8fe3ff, 0.8);
+        gr.beginPath(); gr.arc(48, 48, 40, 2.2, 3.6); gr.strokePath();
+        // 环绕光点
+        gr.fillStyle(0xffffff, 0.8);
+        gr.fillCircle(48 + 38 * Math.cos(0.8), 48 + 38 * Math.sin(0.8), 3);
+        gr.fillCircle(48 + 30 * Math.cos(4.2), 48 + 30 * Math.sin(4.2), 2.5);
       });
 
       // ---------- 通用圆点（粒子） ----------
@@ -310,13 +400,17 @@
         gr.fillStyle(0xffffff, 1); gr.fillCircle(16, 16, 16);
       });
       g(scene, 'blob_soft', 64, 64, function (gr) {
-        for (var i = 8; i > 0; i--) {
-          gr.fillStyle(0xffffff, 0.08); gr.fillCircle(32, 32, i * 4);
-        }
+        // 柔边投影底图：中心不透明、边缘羽化。
+        // 注意必须是「不透明的白色」由运行时 tint 黑 + alpha 控制深浅，
+        // 之前版本中心 alpha 只有 0.47，叠上对象 0.34 后有效不透明度仅 16%，肉眼几乎不可见。
+        gr.fillStyle(0xffffff, 1); gr.fillCircle(32, 32, 24);
+        gr.fillStyle(0xffffff, 0.55); gr.fillCircle(32, 32, 27);
+        gr.fillStyle(0xffffff, 0.30); gr.fillCircle(32, 32, 30);
+        gr.fillStyle(0xffffff, 0.12); gr.fillCircle(32, 32, 32);
       });
 
-      // ---------- 战场地面 tile ----------
-      g(scene, 'tile', 128, 128, function (gr) {
+      // ---------- 战场地面 tile（占位图专用键，正式图走 tile / tile_ch<n>） ----------
+      g(scene, 'tile_ph', 128, 128, function (gr) {
         gr.fillStyle(0xffffff, 1); gr.fillRect(0, 0, 128, 128);
         gr.fillStyle(0x000000, 0.05);
         gr.fillCircle(24, 30, 10); gr.fillCircle(96, 92, 14); gr.fillCircle(72, 22, 6);
@@ -448,6 +542,16 @@
           gr.fillStyle(0x53d9ff, 1);  gr.fillCircle(40, 40, 18);
           gr.fillStyle(0xffffff, 0.8); gr.fillCircle(33, 33, 6);
         },
+        skull: function (gr) {
+          gr.fillStyle(C.outline, 1); gr.fillCircle(40, 36, 24);
+          gr.fillStyle(0xf2ede2, 1);  gr.fillCircle(40, 35, 19);
+          gr.fillStyle(0xf2ede2, 1);  gr.fillRoundedRect(30, 48, 20, 12, 4);
+          gr.fillStyle(C.ink, 1);
+          gr.fillCircle(33, 34, 6); gr.fillCircle(47, 34, 6);
+          gr.fillTriangle(38, 44, 42, 44, 40, 50);
+          gr.fillStyle(C.ink, 1);
+          gr.fillRect(33, 52, 3, 6); gr.fillRect(39, 52, 3, 6); gr.fillRect(45, 52, 3, 6);
+        },
         heal: function (gr) {
           gr.fillStyle(C.outline, 1); gr.fillRoundedRect(16, 33, 48, 14, 6); gr.fillRoundedRect(33, 16, 14, 48, 6);
           gr.fillStyle(0x4ee07a, 1); gr.fillRoundedRect(20, 36, 40, 8, 4); gr.fillRoundedRect(36, 20, 8, 40, 4);
@@ -462,6 +566,152 @@
         gr.fillStyle(0xfff6e2, 1);    gr.fillRoundedRect(6, 6, 276, 354, 21);
         gr.fillStyle(0xffe9c2, 1);    gr.fillRoundedRect(6, 6, 276, 120, 21);
         gr.fillStyle(0xfff6e2, 1);    gr.fillRect(6, 100, 276, 26);
+      });
+    },
+
+    /* -----------------------------------------------------
+     * 角色皮肤占位图（skin_*，96×96，和 player 同尺寸）
+     * 后期换成正式美术：把同名的 assets/skin_xxx.png 放进去即可自动覆盖
+     * 配色表来自 D.SKINS[x].paint
+     * --------------------------------------------------- */
+    generateSkins: function (scene) {
+      var list = (R.DATA && R.DATA.SKINS) || [];
+      list.forEach(function (sk) {
+        g(scene, sk.id, 96, 96, function (gr) { drawHero(gr, sk.paint); });
+      });
+      // 兜底：万一没配表，也给一个和默认主角一致的皮肤
+      g(scene, 'skin_default', 96, 96, function (gr) {
+        drawHero(gr, { body: C.blue, vest: C.yellow, head: C.pea, hat: C.peaDark });
+      });
+    },
+
+    /* -----------------------------------------------------
+     * 宠物系统贴图（v0.6.0）
+     * pet_nest 蛋巢 96×96 / pet_egg 蛋 48×48 / pet_buddy 宠物 64×64 / pet_ball 宠物子弹
+     * --------------------------------------------------- */
+    generatePet: function (scene) {
+      // 蛋巢：碗口朝上的编织巢，中间露出待孵的蛋
+      g(scene, 'pet_nest', 96, 96, function (gr) {
+        gr.fillStyle(0x000000, 0.18); gr.fillEllipse(48, 76, 76, 16);
+        // 巢碗下半（外层深棕）
+        gr.fillStyle(C.outline, 1);   gr.fillEllipse(48, 54, 84, 58);
+        gr.fillStyle(0x6d4c26, 1);    gr.fillEllipse(48, 55, 76, 50);
+        // 碗口内圈（内层暗色，做出凹陷）
+        gr.fillStyle(C.outline, 1);   gr.fillEllipse(48, 40, 70, 30);
+        gr.fillStyle(0x4a3018, 1);    gr.fillEllipse(48, 41, 62, 24);
+        // 编织纹路（横向弧线）
+        gr.lineStyle(2.5, 0x8d6b3b, 0.9);
+        for (var i = 0; i < 3; i++) {
+          gr.beginPath();
+          gr.arc(48, 30 + i * 14, 30 - i * 4, Math.PI * 0.12, Math.PI * 0.88);
+          gr.strokePath();
+        }
+        // 碗里的蛋（小一号，露出一半）
+        gr.fillStyle(C.outline, 1); gr.fillEllipse(48, 34, 30, 36);
+        gr.fillStyle(0xfff6e2, 1);  gr.fillEllipse(48, 32, 24, 30);
+        gr.fillStyle(0x9b5de5, 0.65);
+        gr.fillCircle(42, 26, 3); gr.fillCircle(53, 34, 2.7);
+        gr.fillStyle(0xffffff, 0.75); gr.fillEllipse(43, 22, 7, 9);
+        // 前沿草垫（画在蛋前面，挡住蛋的下缘）
+        gr.fillStyle(0x4f8f3a, 1);  gr.fillEllipse(48, 58, 78, 18);
+        gr.fillStyle(0x63a847, 1);  gr.fillEllipse(48, 54, 66, 12);
+        // 几根小草
+        gr.lineStyle(3, 0x3f8f2e, 1);
+        gr.beginPath(); gr.moveTo(20, 60); gr.lineTo(14, 46); gr.strokePath();
+        gr.beginPath(); gr.moveTo(76, 60); gr.lineTo(82, 46); gr.strokePath();
+        gr.beginPath(); gr.moveTo(48, 66); gr.lineTo(48, 52); gr.strokePath();
+      });
+      // 蛋：带斑点的奶白蛋
+      g(scene, 'pet_egg', 48, 48, function (gr) {
+        gr.fillStyle(C.outline, 1); gr.fillEllipse(24, 26, 30, 38);
+        gr.fillStyle(0xfff6e2, 1);  gr.fillEllipse(24, 25, 24, 32);
+        gr.fillStyle(0x9b5de5, 0.65);
+        gr.fillCircle(18, 20, 3.4); gr.fillCircle(29, 28, 3); gr.fillCircle(24, 36, 2.6);
+        gr.fillStyle(0xffffff, 0.75); gr.fillEllipse(18, 14, 8, 12);
+      });
+      // 宠物：圆滚滚的小绒球兽（大眼 + 小翅膀）
+      g(scene, 'pet_buddy', 64, 64, function (gr) {
+        gr.fillStyle(0x000000, 0.15); gr.fillEllipse(32, 54, 34, 9);
+        // 小翅膀
+        gr.fillStyle(C.outline, 1);
+        gr.fillEllipse(8, 30, 18, 10); gr.fillEllipse(56, 30, 18, 10);
+        gr.fillStyle(0xfff6e2, 1);
+        gr.fillEllipse(9, 30, 13, 6);  gr.fillEllipse(55, 30, 13, 6);
+        // 身体
+        gr.fillStyle(C.outline, 1); gr.fillCircle(32, 34, 22);
+        gr.fillStyle(0xffd23f, 1);  gr.fillCircle(32, 33, 18);
+        // 系着的小红巾
+        gr.fillStyle(0xe8433c, 1); gr.fillRoundedRect(20, 44, 24, 8, 4);
+        // 眼睛
+        eyes(gr, 32, 30, 8, 6, 1);
+        // 嘴
+        gr.lineStyle(3, C.ink, 1);
+        gr.beginPath(); gr.arc(32, 38, 5, 0.25, Math.PI - 0.25); gr.strokePath();
+      });
+      // 宠物子弹：金色小星丸
+      g(scene, 'pet_ball', 24, 24, function (gr) {
+        gr.fillStyle(C.outline, 1); gr.fillCircle(12, 12, 9);
+        gr.fillStyle(0xffd23f, 1);  gr.fillCircle(12, 12, 6.5);
+        gr.fillStyle(0xffffff, 0.9); gr.fillCircle(9.5, 9.5, 2.4);
+      });
+    },
+
+    /* -----------------------------------------------------
+     * 祭坛与泉水贴图（v0.7.0）
+     * altar_bless 祝福祭坛 / altar_curse 诅咒祭坛 / fountain 泉水（均 96×112）
+     * --------------------------------------------------- */
+    generateProps: function (scene) {
+      function altarBase(gr, gem, glow) {
+        gr.fillStyle(0x000000, 0.18); gr.fillEllipse(48, 102, 76, 14);
+        // 石台（三层）
+        gr.fillStyle(C.outline, 1); gr.fillRoundedRect(10, 88, 76, 18, 8);
+        gr.fillStyle(0xb8c0c8, 1);  gr.fillRoundedRect(15, 91, 66, 12, 6);
+        gr.fillStyle(C.outline, 1); gr.fillRoundedRect(24, 58, 48, 34, 8);
+        gr.fillStyle(0x9aa3ad, 1);  gr.fillRoundedRect(29, 62, 38, 26, 6);
+        gr.fillStyle(C.outline, 1); gr.fillRoundedRect(14, 90, 68, 8, 4);
+        gr.fillStyle(0xd8dee4, 1);  gr.fillRoundedRect(18, 91, 60, 5, 3);
+        // 顶石与宝石
+        gr.fillStyle(C.outline, 1); gr.fillRoundedRect(30, 40, 36, 22, 8);
+        gr.fillStyle(0xc9ccd2, 1);  gr.fillRoundedRect(34, 43, 28, 15, 6);
+        gr.fillStyle(C.outline, 1); gr.fillCircle(48, 30, 15);
+        gr.fillStyle(gem, 1);       gr.fillCircle(48, 30, 11);
+        gr.fillStyle(0xffffff, 0.55); gr.fillCircle(44, 26, 4);
+        // 光效符文点
+        gr.fillStyle(glow, 0.9);
+        gr.fillCircle(20, 100, 3); gr.fillCircle(76, 100, 3); gr.fillCircle(48, 104, 3.5);
+      }
+      // 祝福祭坛：金色宝石
+      g(scene, 'altar_bless', 96, 112, function (gr) {
+        altarBase(gr, 0xffd23f, 0xffe9a8);
+        gr.lineStyle(3, 0xffd23f, 0.9);
+        gr.beginPath(); gr.arc(48, 30, 19, 0.4, 2.4); gr.strokePath();
+        gr.beginPath(); gr.arc(48, 30, 19, 3.6, 5.6); gr.strokePath();
+      });
+      // 诅咒祭坛：紫色宝石 + 尖刺
+      g(scene, 'altar_curse', 96, 112, function (gr) {
+        altarBase(gr, 0x9b5de5, 0xc9a8ff);
+        gr.fillStyle(C.outline, 1);
+        gr.fillTriangle(20, 44, 26, 26, 32, 44);
+        gr.fillTriangle(64, 44, 70, 26, 76, 44);
+        gr.lineStyle(3, 0xc9a8ff, 0.9);
+        gr.beginPath(); gr.arc(48, 30, 19, 0.9, 2.1); gr.strokePath();
+      });
+      // 泉水：石环水池 + 清水 + 气泡
+      g(scene, 'fountain', 96, 96, function (gr) {
+        gr.fillStyle(0x000000, 0.15); gr.fillEllipse(48, 78, 80, 14);
+        gr.fillStyle(C.outline, 1); gr.fillEllipse(48, 58, 84, 52);
+        gr.fillStyle(0xb8c0c8, 1);  gr.fillEllipse(48, 56, 76, 44);
+        gr.fillStyle(C.outline, 1); gr.fillEllipse(48, 56, 60, 32);
+        // 水面
+        gr.fillStyle(0x53d9ff, 1);  gr.fillEllipse(48, 56, 54, 27);
+        gr.fillStyle(0x9fe8ff, 1);  gr.fillEllipse(44, 52, 34, 16);
+        gr.fillStyle(0xffffff, 0.85);
+        gr.fillCircle(38, 50, 3.4); gr.fillCircle(56, 58, 2.8); gr.fillCircle(50, 62, 2.2);
+        // 中心涌泉柱
+        gr.fillStyle(C.outline, 1); gr.fillRoundedRect(42, 24, 12, 34, 6);
+        gr.fillStyle(0xd8dee4, 1);  gr.fillRoundedRect(45, 27, 6, 28, 3);
+        gr.fillStyle(0x53d9ff, 1);  gr.fillCircle(48, 20, 8);
+        gr.fillStyle(0xffffff, 0.6); gr.fillCircle(46, 18, 3);
       });
     },
 
@@ -502,22 +752,27 @@
 
       // 岩石
       g(scene, 'ob_rock', 110, 110, function (gr) {
-        shadow(gr, 55, 98, 92, 22);
+        // 影子贴底，石头主体压到画布下沿，避免"悬空"
+        shadow(gr, 55, 102, 96, 14);
         gr.fillStyle(C.outline, 1);
         gr.beginPath();
-        gr.moveTo(14, 88); gr.lineTo(28, 34); gr.lineTo(58, 12);
-        gr.lineTo(92, 32); gr.lineTo(100, 82); gr.closePath(); gr.fillPath();
+        gr.moveTo(12, 100); gr.lineTo(26, 48); gr.lineTo(58, 24);
+        gr.lineTo(94, 46); gr.lineTo(102, 96); gr.closePath(); gr.fillPath();
         gr.fillStyle(C.stone, 1);
         gr.beginPath();
-        gr.moveTo(22, 84); gr.lineTo(34, 38); gr.lineTo(58, 20);
-        gr.lineTo(86, 38); gr.lineTo(92, 78); gr.closePath(); gr.fillPath();
+        gr.moveTo(20, 96); gr.lineTo(32, 52); gr.lineTo(58, 32);
+        gr.lineTo(88, 52); gr.lineTo(94, 92); gr.closePath(); gr.fillPath();
         // 高光面
         gr.fillStyle(0xc3ccd6, 1);
         gr.beginPath();
-        gr.moveTo(34, 38); gr.lineTo(58, 20); gr.lineTo(66, 52); gr.lineTo(42, 62); gr.closePath(); gr.fillPath();
+        gr.moveTo(32, 52); gr.lineTo(58, 32); gr.lineTo(66, 64); gr.lineTo(42, 74); gr.closePath(); gr.fillPath();
+        // 底部暗面（接地感）
+        gr.fillStyle(C.stoneD, 0.8);
+        gr.beginPath();
+        gr.moveTo(20, 96); gr.lineTo(94, 92); gr.lineTo(90, 100); gr.lineTo(24, 102); gr.closePath(); gr.fillPath();
         // 苔藓
         gr.fillStyle(0x7cb342, 0.85);
-        gr.fillEllipse(50, 86, 34, 12);
+        gr.fillEllipse(50, 94, 34, 10);
       });
 
       // 树

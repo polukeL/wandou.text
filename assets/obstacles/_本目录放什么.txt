@@ -1,0 +1,15 @@
+﻿建筑障碍
+========================================
+
+文件名必须等于下面的 id（全小写，扩展名 .png）：
+
+  ob_house.png
+  ob_rock.png
+  ob_tree.png
+  ob_crate.png
+  ob_bush.png
+  ob_well.png
+  ob_tomb.png
+  ob_pillar.png
+
+这张说明文件不影响游戏，可以删除。

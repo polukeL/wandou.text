@@ -1,0 +1,13 @@
+﻿道具
+========================================
+
+文件名必须等于下面的 id（全小写，扩展名 .png）：
+
+  pet_nest.png
+  pet_egg.png
+  pet_buddy.png
+  altar_bless.png
+  altar_curse.png
+  fountain.png
+
+这张说明文件不影响游戏，可以删除。

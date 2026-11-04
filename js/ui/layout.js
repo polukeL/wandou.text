@@ -15,21 +15,21 @@
 (function (R) {
   'use strict';
 
-  var LS_KEY = 'pearogue.uilayout.v1';
+  var LS_KEY = 'pearogue.uilayout.v2';   // v2：0.4.0 数值血条改版，旧草稿自动作废
 
   /* 默认布局（定稿就改这里） */
   var DEFAULTS = {
-    hp:        { x: 24,   y: 26  },   // 左上：血量心形容器
-    hpText:    { x: 84,   y: 26  },   // 血量数字
-    lvText:    { x: 26,   y: 86  },   // Lv 数字
+    hp:        { x: 24,   y: 40, w: 180, h: 18 }, // 左上：生命条（w/h 为条的宽高）
+    hpText:    { x: 216,  y: 34  },   // 血量数字 hp/maxHp
+    lvText:    { x: 26,   y: 74  },   // Lv 数字
     xp:        { x: 0,    y: 0, h: 12 }, // 顶部经验条（x 恒 0，h=高度）
-    statText:  { x: 696,  y: 26  },   // 右上：计时/杀敌/金币（origin 右上）
-    roomText:  { x: 360,  y: 26  },   // 顶部中：关卡进度
+    statText:  { x: 696,  y: 44  },   // 右上：计时/杀敌/金币（origin 右上）
+    roomText:  { x: 400,  y: 84  },   // 顶部第二行：关卡进度（避让血量与统计）
     banner:    { x: 360,  y: 435 },   // 中央大字（公告）
     bannerSub: { x: 360,  y: 501 },   // 公告副标题
     pauseBtn:  { x: 664,  y: 1140 },  // 暂停按钮（右下）
     muteBtn:   { x: 664,  y: 1220 },  // 音效开关（右下）
-    shieldFx:  { x: 24,  y: 10  }    // 护盾格起始位置
+    shieldFx:  { x: 24,  y: 10  }    // 兼容旧配置（护盾已并入生命条下方）
   };
 
   var Layout = R.UILayout = {
@@ -59,10 +59,13 @@
       return { x: d.x !== undefined ? d.x : defX, y: d.y !== undefined ? d.y : defY };
     },
 
-    /* 取某元素的生效尺寸（如经验条高度） */
-    size: function (key, defH) {
+    /* 取某元素的生效尺寸（h 高度 / w 宽度，缺省用 def） */
+    size: function (key, defH, defW) {
       var d = Layout.load()[key] || {};
-      return { h: d.h !== undefined ? d.h : defH };
+      return {
+        h: d.h !== undefined ? d.h : defH,
+        w: d.w !== undefined ? d.w : defW
+      };
     },
 
     /* 调试模式设置位置（只写草稿，不影响 DEFAULTS） */

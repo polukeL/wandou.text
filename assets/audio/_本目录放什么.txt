@@ -1,0 +1,18 @@
+﻿音效（mp3 或 ogg）
+========================================
+
+文件名必须等于下面的 id（全小写，扩展名 .mp3 或 .ogg）：
+
+  bgm_main.mp3
+  shoot.mp3
+  hit.mp3
+  kill.mp3
+  hurt.mp3
+  pickup.mp3
+  coin.mp3
+  heal.mp3
+  level.mp3
+  reward.mp3
+  boss.mp3
+
+这张说明文件不影响游戏，可以删除。
