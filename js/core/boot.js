@@ -40,6 +40,7 @@
     return R.game;
   };
 
+<<<<<<< HEAD
   /* =========================================================
    * 资源目录约定（v0.7.6 起支持分组）
    * =========================================================
@@ -191,6 +192,19 @@
           done();
         }
       });
+=======
+  /* 可选的正式音频/贴图预加载：
+   * 如果 assets/ 下放了同名文件会自动覆盖占位图；没有就用占位。 */
+  R.loadOptionalAssets = function (scene) {
+    var files = (R.DATA.ART || []).map(function (a) { return { key: a.id, path: 'assets/' + a.id + '.png' }; });
+    // 皮肤贴图同样支持 assets/skin_xxx.png 覆盖（主角实际渲染用的是皮肤纹理）
+    (R.DATA.SKINS || []).forEach(function (s) {
+      if (s && s.id) files.push({ key: s.id, path: 'assets/' + s.id + '.png' });
+    });
+    var audio = ['bgm_main', 'shoot', 'hit', 'kill', 'hurt', 'pickup', 'level', 'coin', 'heal', 'reward', 'boss'];
+    files.forEach(function (f) {
+      if (!scene.textures.exists(f.key + '_real')) scene.load.image(f.key + '_real', f.path);
+>>>>>>> 2ff3b08ccc2a4f9637f71f978faede96af490ac8
     });
   };
 
@@ -218,6 +232,7 @@
     var failedArt = [];
     scene.load.on('loaderror', function (file) {
       var src = (file && file.src ? file.src : '') + '';
+<<<<<<< HEAD
       var key = (file && file.key) ? file.key : '';
       // 只提示正式贴图失败（音效、UI 属于可选资源，404 是正常情况）
       if (/_real$/.test(key)) failedArt.push(src || key);
@@ -226,6 +241,17 @@
       if (failedArt.length) {
         console.warn('[豌豆镇] 以下贴图文件存在但解码失败（未生效）：\n  ' + failedArt.join('\n  ') +
           '\n请确认：1) 文件是真正的 PNG 且未损坏；2) 通过 http:// 访问而不是 file:// 双击打开；3) 浏览器无缓存（Ctrl+F5 强刷）');
+=======
+      // 只提示角色/皮肤贴图失败（音效、UI 属于可选资源，404 是正常情况）
+      var isArt = (R.DATA.ART || []).some(function (a) { return src.indexOf('assets/' + a.id + '.png') >= 0; }) ||
+                  (R.DATA.SKINS || []).some(function (s) { return s && src.indexOf('assets/' + s.id + '.png') >= 0; });
+      if (isArt) failedArt.push(src);
+    });
+    scene.load.once('complete', function () {
+      if (failedArt.length) {
+        console.warn('[豌豆镇] 以下角色/皮肤贴图加载失败（未生效）：\n  ' + failedArt.join('\n  ') +
+          '\n请确认：1) 文件确实在 assets/ 目录且扩展名为 .png；2) 通过 http:// 访问而不是 file:// 双击打开；3) 浏览器无缓存（Ctrl+F5 强刷）');
+>>>>>>> 2ff3b08ccc2a4f9637f71f978faede96af490ac8
       }
     });
   };
@@ -234,11 +260,14 @@
   R.applyRealArt = function (scene) {
     var defs = (R.DATA.ART || []).slice();
     (R.DATA.SKINS || []).forEach(function (s) { if (s && s.id) defs.push({ id: s.id }); });
+<<<<<<< HEAD
     (R.UI_ICONS || []).forEach(function (n) { defs.push({ id: 'icon_' + n }); });
     // 场景图（固定 1600×1600）：tile / tile_ch1~3
     (R.realArtKeys() || []).forEach(function (id) {
       if (id === 'tile' || id.indexOf('tile_ch') === 0) defs.push({ id: id });
     });
+=======
+>>>>>>> 2ff3b08ccc2a4f9637f71f978faede96af490ac8
     var applied = [];
     defs.forEach(function (a) {
       var realKey = a.id + '_real';

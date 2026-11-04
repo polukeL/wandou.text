@@ -363,12 +363,17 @@
         // 旋涡外环（粗描边门框）
         gr.lineStyle(10, C.outline, 1);  gr.strokeCircle(70, 66, 44);
         gr.lineStyle(6, 0x8a5fd6, 1);    gr.strokeCircle(70, 66, 44);
+<<<<<<< HEAD
         // 漩涡内部：三层渐变（旋涡臂在 portal_swirl 贴图上单独旋转）
+=======
+        // 漩涡内部：三层渐变
+>>>>>>> 2ff3b08ccc2a4f9637f71f978faede96af490ac8
         gr.fillStyle(0x2a1d4a, 1);     gr.fillCircle(70, 66, 40);
         gr.fillStyle(0x4a2f8a, 0.85);  gr.fillCircle(70, 66, 33);
         gr.fillStyle(0x8a5fd6, 0.8);   gr.fillCircle(70, 66, 24);
         gr.fillStyle(0xc9a8ff, 0.9);   gr.fillCircle(70, 66, 13);
         gr.fillStyle(0xffffff, 0.95);  gr.fillCircle(70, 66, 5);
+<<<<<<< HEAD
         // 底部符文光点
         gr.fillStyle(0x8fe3ff, 0.9);
         gr.fillCircle(36, 130, 4); gr.fillCircle(70, 132, 4.5); gr.fillCircle(104, 130, 4);
@@ -393,6 +398,17 @@
         gr.fillStyle(0xffffff, 0.8);
         gr.fillCircle(48 + 38 * Math.cos(0.8), 48 + 38 * Math.sin(0.8), 3);
         gr.fillCircle(48 + 30 * Math.cos(4.2), 48 + 30 * Math.sin(4.2), 2.5);
+=======
+        // 旋涡臂（旋转弧线）
+        gr.lineStyle(5, 0xc9a8ff, 0.85);
+        gr.beginPath(); gr.arc(70, 66, 30, 0.3, 1.7); gr.strokePath();
+        gr.beginPath(); gr.arc(70, 66, 19, 3.4, 4.8); gr.strokePath();
+        gr.lineStyle(4, 0x8fe3ff, 0.8);
+        gr.beginPath(); gr.arc(70, 66, 36, 2.2, 3.6); gr.strokePath();
+        // 底部符文光点
+        gr.fillStyle(0x8fe3ff, 0.9);
+        gr.fillCircle(36, 130, 4); gr.fillCircle(70, 132, 4.5); gr.fillCircle(104, 130, 4);
+>>>>>>> 2ff3b08ccc2a4f9637f71f978faede96af490ac8
       });
 
       // ---------- 通用圆点（粒子） ----------
