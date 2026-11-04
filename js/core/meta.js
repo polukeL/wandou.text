@@ -16,7 +16,8 @@
     // 装扮
     avatar: 'av_pea',
     frame: 'fr_basic',
-    owned: { av_pea: true, fr_basic: true },
+    skin: 'skin_default',
+    owned: { av_pea: true, fr_basic: true, skin_default: true },
     // 通关记录：【新版在前】{ time:秒, kills, level, room, date, seed }
     clears: []
   };
@@ -30,11 +31,13 @@
       if (d.totalKills) Meta.totalKills = d.totalKills | 0;
       if (d.avatar) Meta.avatar = d.avatar;
       if (d.frame) Meta.frame = d.frame;
+      if (d.skin) Meta.skin = d.skin;
       if (d.owned && typeof d.owned === 'object') {
         for (var k in d.owned) if (d.owned[k]) Meta.owned[k] = true;
       }
       Meta.owned[Meta.avatar] = true;
       Meta.owned[Meta.frame] = true;
+      Meta.owned[Meta.skin] = true;
       if (Array.isArray(d.clears)) Meta.clears = d.clears.filter(function (r) { return r && r.time > 0; });
     } catch (e) {}
     // 对局结束时累计次数（R.on 在 main.js 里定义，此时已可用）
@@ -49,7 +52,7 @@
       localStorage.setItem(LS, JSON.stringify({
         gold: Meta.gold, perks: Meta.perks,
         totalRuns: Meta.totalRuns, totalKills: Meta.totalKills,
-        avatar: Meta.avatar, frame: Meta.frame, owned: Meta.owned,
+        avatar: Meta.avatar, frame: Meta.frame, skin: Meta.skin, owned: Meta.owned,
         clears: Meta.clears
       }));
     } catch (e) {}
@@ -70,9 +73,43 @@
   Meta.equip = function (def) {
     if (!Meta.owns(def.id)) return false;
     if (String(def.id).indexOf('av_') === 0) Meta.avatar = def.id;
+    else if (String(def.id).indexOf('skin_') === 0) Meta.skin = def.id;
     else Meta.frame = def.id;
     Meta.save();
     return true;
+  };
+
+  /* ---------------- 皮肤 ---------------- */
+  Meta.skinDef = function (id) {
+    var list = (R.DATA && R.DATA.SKINS) || [];
+    var want = id || Meta.skin;
+    for (var i = 0; i < list.length; i++) if (list[i].id === want) return list[i];
+    return list[0] || null;
+  };
+
+  /* 通关解锁的皮肤是否已达成条件（不写入存档） */
+  Meta.skinUnlockMet = function (def) {
+    if (!def) return false;
+    if (def.unlock === 'default' || !def.unlock) return true;
+    if (def.unlock === 'clear') {
+      var need = (R.DATA && R.DATA.SKINS_UNLOCK_CLEARS) || 1;
+      return Meta.clears.length >= need;
+    }
+    return true;   // 'gold' 走金币购买
+  };
+
+  /* 检查并发放通关类皮肤，返回本次新解锁的数组 */
+  Meta.checkSkinUnlocks = function () {
+    var out = [];
+    ((R.DATA && R.DATA.SKINS) || []).forEach(function (def) {
+      if (def.unlock !== 'clear') return;
+      if (Meta.owns(def.id)) return;
+      if (!Meta.skinUnlockMet(def)) return;
+      Meta.owned[def.id] = true;
+      out.push(def);
+    });
+    if (out.length) Meta.save();
+    return out;
   };
 
   Meta.avatarDef = function (id) {
@@ -101,12 +138,14 @@
     Meta.clears.sort(function (a, b) { return a.time - b.time; });
     Meta.clears = Meta.clears.slice(0, ((R.DATA && R.DATA.LEADERBOARD) || {}).max || 20);
     Meta.save();
+    var newSkins = Meta.checkSkinUnlocks();   // 通关奖励皮肤（如「云端豆」）
     var best = Meta.bestClear();
     return {
       record: rec,
       isBest: !prevBest || rec.time < prevBest.time,
       prevBest: prevBest,
-      best: best
+      best: best,
+      newSkins: newSkins
     };
   };
 
@@ -160,9 +199,13 @@
       dmg:    Meta.perkLevel('dmg')    * 0.04,   // 每级 +4% 伤害
       atk:    Meta.perkLevel('atk')    * 0.04,   // 每级 +4% 攻速
       spd:    Meta.perkLevel('spd')    * 0.03,   // 每级 +3% 移速
-      hp:     Meta.perkLevel('hp'),              // 每级 +1 生命上限
+      hp:     Meta.perkLevel('hp')     * ((R.DATA.HP && R.DATA.HP.metaHpPerLevel) || 20), // 每级 +20 上限
       magnet: Meta.perkLevel('magnet') * 0.15,   // 每级 +15% 拾取范围
-      gain:   Meta.perkLevel('gain')   * 0.10    // 每级 +10% 金币获取
+      gain:   Meta.perkLevel('gain')   * 0.10,   // 每级 +10% 金币获取
+      /* 宠物相关（v0.6.0） */
+      petAtk:   Meta.perkLevel('petAtk')   * 0.25,  // 每级 +25% 宠物伤害
+      petHatch: Meta.perkLevel('petHatch') * 0.12,  // 每级 孵化需求 -12%
+      waveAdd:  Meta.perkLevel('wave')     * 2      // 每级 每波 +2 只
     };
   };
 

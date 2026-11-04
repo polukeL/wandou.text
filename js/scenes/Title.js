@@ -106,7 +106,7 @@
     if (R.Meta.frame === 'fr_rainbow') R.Avatar.spinFrame(this, av, 9000);
     // 昵称条
     var nameDef = R.Meta.avatarDef();
-    var avName = this.add.text(W / 2, avY + 62, nameDef ? nameDef.name : '豌豆仔', {
+    var avName = this.add.text(W / 2, avY + 60, nameDef ? nameDef.name : '豌豆仔', {
       fontFamily: '"Baloo 2","Fredoka",system-ui,sans-serif', fontSize: '18px', fontStyle: 'bold',
       color: '#2b1d2b'
     }).setOrigin(0.5).setAlpha(0.85);
@@ -128,9 +128,9 @@
       self.scene.start('Board');
     });
 
-    // 提示
-    this.add.text(W / 2, H - 120, R.DATA.TEXT.hint, {
-      fontFamily: 'system-ui,sans-serif', fontSize: '20px', color: '#3d5a20'
+    // 提示（在通关榜入口 avY+104+19 ≈ btnY+231 之下，避免重叠）
+    this.add.text(W / 2, H - 52, R.DATA.TEXT.hint, {
+      fontFamily: 'system-ui,sans-serif', fontSize: '19px', color: '#3d5a20'
     }).setOrigin(0.5).setAlpha(0.9);
 
     // 音效开关

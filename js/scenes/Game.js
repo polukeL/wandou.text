@@ -45,9 +45,20 @@
     this.pickups  = this.physics.add.group({ classType: Phaser.Physics.Arcade.Image, maxSize: 400, runChildUpdate: false });
     this.orbs     = [];
     this.dmgTexts = [];
+    // 宠物视觉对象（逻辑状态在 run.pet）
+    this.nestSprite = null; this.nestBeam = null;
+    this.eggSprite = null; this.eggBar = null; this.eggBarBg = null;
+    this.petSprite = null;
+    // 祭坛 / 泉水
+    this.altars = []; this.fountain = null;
+    this.channel = null;   // {altar, t} 读条状态
 
     // ---- 玩家 ----
-    this.player = this.physics.add.sprite(ARENA / 2, ARENA / 2, 'player');
+    // 皮肤：读取已装备的 skin_*，纹理不存在时回退到 player
+    var skinId = R.Meta.skin || 'skin_default';
+    if (!this.textures.exists(skinId)) skinId = 'player';
+    this.skinId = skinId;
+    this.player = this.physics.add.sprite(ARENA / 2, ARENA / 2, skinId);
     this.player.setDepth(20).setCircle(26, 22, 22).setCollideWorldBounds(true);
     this.player.setScale(1.0);
     this.data.set('invuln', 0);
@@ -390,6 +401,10 @@
     this.clearEntities();
     // 本关建筑（每关重新随机摆放）
     this.buildObstacles();
+    // 本关蛋巢（还没拿到蛋时才有）
+    this.spawnNest();
+    // 本关祭坛与泉水
+    this.spawnProps();
     this.phase = 'fight';
     this.roomTimer = 0;
     this.spawnTimer = 0;
@@ -428,7 +443,8 @@
       // ---- 波次制：每关分 3 波，难度逐波上升，打完最后一波出传送门 ----
       this.waveTotal = 3;
       this.waveShare = [0.25, 0.35, 0.40];
-      this.waveBaseTarget = 8 + run.room * 3;
+      // 研究所「战鼓」：每波怪物数量 +2/级
+      this.waveBaseTarget = 8 + run.room * 3 + (run.metaWaveAdd || 0);
       this.waveBaseInterval = D.scaling.spawnInterval(run.room);
       this.startWave(0, true);
     }
@@ -485,17 +501,58 @@
       }
     });
     this.chestList = [];
+    // 蛋巢只在生成它的那一关有效
+    if (this.nestSprite) { this.nestSprite.destroy(); this.nestSprite = null; }
+    if (this.nestBeam) { this.nestBeam.destroy(); this.nestBeam = null; }
+    // 祭坛 / 泉水（每关重新生成）
+    (this.altars || []).forEach(function (a) {
+      if (a.sprite) a.sprite.destroy();
+      if (a.glow) a.glow.destroy();
+      if (a.barBg) a.barBg.destroy();
+      if (a.bar) a.bar.destroy();
+    });
+    this.altars = [];
+    if (this.fountain) {
+      if (this.fountain.sprite) this.fountain.sprite.destroy();
+      if (this.fountain.btn) this.fountain.btn.destroy();
+      this.fountain = null;
+    }
+    this.channel = null;
     // Boss 血条 & 存档点直接清掉，避免跨关残留
     if (this.bossBarBg) { this.bossBarBg.destroy(); this.bossBarBg = null; }
     if (this.bossBar) { this.bossBar.destroy(); this.bossBar = null; }
     if (this.bossName) { this.bossName.destroy(); this.bossName = null; }
+
+    // 【防泄漏】清理目标已销毁的 tween。
+    // 蛋巢/祭坛光柱/宝箱漂浮/传送门旋转都是 repeat:-1 的无限 tween，
+    // 目标 destroy 后 Phaser 不会自动移除，换关多次会累积到上百条。
+    var ts = this.tweens.getTweens();
+    for (var ti = ts.length - 1; ti >= 0; ti--) {
+      var tw = ts[ti];
+      var targets = tw.targets || [];
+      if (!targets.length) continue;
+      var allDead = true;
+      for (var k = 0; k < targets.length; k++) {
+        var t = targets[k];
+        // GameObject 被 destroy 后 active=false 且 scene=null
+        if (!t) continue;
+        if (t.active !== false || t.scene) { allDead = false; break; }
+      }
+      if (allDead) { try { this.tweens.remove(tw); } catch (e) {} }
+    }
   };
 
   /* ---------------- 刷新对象（对象池） ---------------- */
   Game.prototype.spawnImage = function (group, key, x, y) {
     var img = group.getFirstDead && group.getFirstDead(false);
-    if (img) img.setActive(true).setVisible(true);
-    else img = group.create(x, y, key);
+    if (img) {
+      img.setActive(true).setVisible(true);
+    } else {
+      // 池已满（maxSize 上限）：返回 null，由调用方安全跳过，避免整局崩溃
+      if (group.getLength() >= (group.maxSize || Infinity)) return null;
+      img = group.create(x, y, key);
+      if (!img) return null;
+    }
     img.setTexture(key);
     img.setPosition(x, y);
     img.setActive(true).setVisible(true);
@@ -827,6 +884,7 @@
 
     var elite = !!opts.elite;
     var img = this.spawnImage(this.enemies, def.art, pos.x, pos.y);
+    if (!img) return null;   // 敌人数量达到上限（池满），本帧不再刷
     img.setDepth(16);
     img.body.setAllowGravity(false);
     img.setScale(1).setAlpha(1);
@@ -839,7 +897,8 @@
     img.def = def;
     img.maxHp = Math.round(def.hp * hpMul);
     img.hp = img.maxHp;
-    img.dmg = Math.max(1, Math.round(def.dmg * D.scaling.enemyDmg(run.room, run.chapter)));
+    // 数值伤害：小怪基准 8 / 精英 16，随章节关卡增长
+    img.dmg = D.scaling.dmg(elite ? D.DMG.elite : D.DMG.mob, run.room, run.chapter);
     img.xp = def.xp * (elite ? D.ELITE.xp : 1);
     img.gold = def.gold * (elite ? D.ELITE.gold : 1);
     img.speed = def.speed;
@@ -869,6 +928,279 @@
 
     this.aliveThisRoom = (this.aliveThisRoom || 0) + 1;
     return img;
+  };
+
+  /* =========================================================
+   * 祭坛 & 泉水（v0.7.0）
+   * 祝福祭坛：站进中心读条 4 秒，期间刷大量小怪，完成得宝箱
+   * 诅咒祭坛：同上但刷精英，完成后得高级宝箱 + 随机负面
+   * 泉水：触碰后出现「饮用」按钮，回复 40% 生命
+   * 每关各限 1 次
+   * ========================================================= */
+  /* 每关生成：70% 出一个祭坛（祝福/诅咒各半），55% 出泉水 */
+  Game.prototype.spawnProps = function () {
+    var self = this;
+    var ARENA = this.physics.world.bounds.width;
+    var used = [];
+    function freeSpot() {
+      for (var t = 0; t < 24; t++) {
+        var p = self.findFreeSpot(ARENA / 2, ARENA / 2, 180, 700);
+        if (!p) continue;
+        var ok = used.every(function (u) { return Phaser.Math.Distance.Between(u.x, u.y, p.x, p.y) > 260; });
+        if (ok) { used.push(p); return p; }
+      }
+      return null;
+    }
+
+    if (!this.isBossRoom && this.run.rand() < 0.7) {
+      var kind = this.run.rand() < 0.5 ? 'bless' : 'curse';
+      var p1 = freeSpot();
+      if (p1) {
+        var a = {
+          kind: kind, x: p1.x, y: p1.y,
+          used: false, t: 0, spawning: 0,
+          left: kind === 'bless' ? D.ALTAR.blessMobs : D.ALTAR.curseElites
+        };
+        a.sprite = this.add.image(p1.x, p1.y, kind === 'bless' ? 'altar_bless' : 'altar_curse').setDepth(12);
+        // 顶部光柱提示
+        a.glow = this.add.rectangle(p1.x, p1.y - 60, 30, 100,
+          kind === 'bless' ? 0xffd23f : 0x9b5de5, 0.15).setDepth(11);
+        this.tweens.add({ targets: a.glow, alpha: 0.04, duration: 800, yoyo: true, repeat: -1 });
+        a.barBg = this.add.rectangle(p1.x, p1.y - 78, 64, 8, 0x2b1d2b, 0.85).setDepth(20).setVisible(false);
+        a.bar = this.add.rectangle(p1.x - 32, p1.y - 78, 0, 5, kind === 'bless' ? 0xffd23f : 0xc9a8ff, 1)
+          .setOrigin(0, 0.5).setDepth(20).setVisible(false);
+        this.altars.push(a);
+      }
+    }
+
+    if (this.run.rand() < 0.55) {
+      var p2 = freeSpot();
+      if (p2) {
+        var f = { x: p2.x, y: p2.y, used: false };
+        f.sprite = this.add.image(p2.x, p2.y, 'fountain').setDepth(12);
+        this.fountain = f;
+      }
+    }
+  };
+
+  /* 每帧更新祭坛读条与泉水交互 */
+  Game.prototype.updateProps = function (dt) {
+    var self = this, p = this.player, run = this.run;
+
+    // ---- 祭坛 ----
+    for (var i = 0; i < this.altars.length; i++) {
+      var a = this.altars[i];
+      if (a.used || !a.sprite.active) continue;
+      var d = Phaser.Math.Distance.Between(p.x, p.y, a.x, a.y);
+      var inZone = d < D.ALTAR.standDist;
+
+      if (this.channel && this.channel.altar === a) {
+        // 读条中
+        this.channel.t += dt;
+        a.barBg.setVisible(true); a.bar.setVisible(true);
+        var prog = Phaser.Math.Clamp(this.channel.t / D.ALTAR.channelTime, 0, 1);
+        a.bar.width = 64 * prog;
+        // 按间隔刷怪（祝福小怪 / 诅咒精英）
+        a.spawning -= dt;
+        if (a.spawning <= 0 && a.left > 0) {
+          a.spawning = D.ALTAR.channelTime * 0.7 / D.ALTAR.blessMobs;
+          a.left--;
+          var ang = this.run.rand() * Math.PI * 2;
+          var sx = a.x + Math.cos(ang) * 240, sy = a.y + Math.sin(ang) * 240;
+          sx = Phaser.Math.Clamp(sx, 60, this.physics.world.bounds.width - 60);
+          sy = Phaser.Math.Clamp(sy, 60, this.physics.world.bounds.height - 60);
+          if (a.kind === 'bless') {
+            this.spawnEnemy(this.run.pick(this.chapterDef.pool), { pos: { x: sx, y: sy } });
+          } else {
+            this.spawnEnemy(this.run.pick(this.chapterDef.pool), { elite: true, pos: { x: sx, y: sy } });
+            this.popText(sx, sy - 40, '精英！', '#c9a8ff', 20);
+          }
+          R.Sfx.play('boss', 200);
+          this.cameras.main.shake(120, 0.004);
+        }
+        // 完成
+        if (this.channel.t >= D.ALTAR.channelTime) {
+          a.used = true;
+          this.channel = null;
+          a.barBg.setVisible(false); a.bar.setVisible(false);
+          a.sprite.setTint(0x777788); a.glow.setAlpha(0.03);
+          if (a.kind === 'bless') {
+            this.spawnChest(a.x, a.y - 10);
+            this.hud.showBanner('🙏 祭坛祝福', '宝箱从天而降！', '#ffe14d');
+          } else {
+            // 高级宝箱：双倍强化 + 掉一件补给；随机一个负面
+            var c = this.spawnChest(a.x, a.y - 10);
+            c.premium = true;
+            this.run.pendingLevels += 1;   // 额外一次强化
+            var drop = this.run.rand() < 0.5 ? 'shield' : 'maxhp';
+            this.dropPickup('pickup_' + (drop === 'shield' ? 'shield' : 'maxhp'), a.x + 60, a.y, drop === 'shield' ? { shield: 4 } : { maxhp: true });
+            var curse = D.CURSES[Math.floor(this.run.rand() * D.CURSES.length)];
+            run.curses[curse.id] = true;
+            this.hud.showBanner('☠ 诅咒祭坛', '获得「' + curse.name + '」：' + curse.desc, '#c9a8ff');
+          }
+          R.Sfx.play('reward');
+          this.burst(a.x, a.y, a.kind === 'bless' ? 0xffd23f : 0x9b5de5, 24);
+        }
+        // 离开范围则中断
+        if (!inZone) {
+          this.channel = null;
+          a.barBg.setVisible(false); a.bar.setVisible(false);
+          this.hud.toast ? this.hud.toast('读条中断') : null;
+        }
+      } else if (inZone && !this.channel) {
+        // 开始读条
+        this.channel = { altar: a, t: 0 };
+        a.spawning = 0.4;
+        R.Sfx.play('select');
+        this.hud.showBanner(
+          a.kind === 'bless' ? '🙏 祝福祭坛' : '☠ 诅咒祭坛',
+          '站定读条，撑过去！', a.kind === 'bless' ? '#ffe14d' : '#c9a8ff');
+      }
+    }
+
+    // ---- 泉水：靠近显示饮用按钮 ----
+    var f = this.fountain;
+    if (f && !f.used && f.sprite.active) {
+      var fd = Phaser.Math.Distance.Between(p.x, p.y, f.x, f.y);
+      if (fd < D.FOUNTAIN.useDist) {
+        if (!f.btn) {
+          var btn = this.add.container(f.x, f.y - 70).setDepth(30);
+          var bg = this.add.graphics();
+          bg.fillStyle(0x2b1d2b, 1);  bg.fillRoundedRect(-78, -22, 156, 44, 22);
+          bg.fillStyle(0x38a8e8, 1);  bg.fillRoundedRect(-73, -17, 146, 34, 17);
+          btn.add(bg);
+          btn.add(this.add.text(0, -1, '⛲ 饮用泉水', {
+            fontFamily: R.FONT, fontSize: '18px', fontStyle: 'bold', color: '#fff6e2'
+          }).setOrigin(0.5));
+          btn.setSize(156, 44).setInteractive({ useHandCursor: true });
+          btn.on('pointerdown', function () {
+            if (f.used) return;
+            f.used = true;
+            var heal = Math.round(run.maxHp * D.FOUNTAIN.healPct);
+            var got = run.heal(heal);
+            R.Sfx.play('heal'); R.Sfx.play('reward');
+            self.popText(self.player.x, self.player.y - 60, '+' + got, '#4ee07a', 26);
+            self.hud.refresh(run);
+            self.hud.showBanner('⛲ 清凉一饮', '回复 ' + got + ' 点生命', '#8fe3ff');
+            f.sprite.setTint(0x667788);   // 变灰：已用
+            f.btn.destroy(); f.btn = null;
+            self.burst(f.x, f.y, 0x53d9ff, 16);
+          });
+          f.btn = btn;
+        }
+      } else if (f.btn) {
+        f.btn.destroy(); f.btn = null;
+      }
+    }
+  };
+
+  /* =========================================================
+   * 宠物系统（v0.6.0）
+   * 蛋巢 → 捡蛋随身携带 → 击杀 D.PET.hatchKills 只孵化
+   * 宠物环绕跟随玩家，自动朝范围内敌人发射星丸
+   * ========================================================= */
+  /* 在本关随机空位放一个蛋巢 */
+  Game.prototype.spawnNest = function () {
+    var run = this.run;
+    if (!run.pet || run.pet.stage !== 'none') return;
+    if (this.isBossRoom) return;   // Boss 房不放
+    var ARENA = this.physics.world.bounds.width;
+    var pos = this.findFreeSpot(ARENA / 2, ARENA / 2, 160, 640) ||
+              { x: ARENA * 0.3, y: ARENA * 0.3 };
+    var nest = this.add.image(pos.x, pos.y, 'pet_nest').setDepth(12);
+    this.tweens.add({ targets: nest, scale: { from: 0.94, to: 1.06 }, duration: 900, yoyo: true, repeat: -1 });
+    this.nestSprite = nest;
+    // 光柱提示，远远能看见
+    var beam = this.add.rectangle(pos.x, pos.y - 40, 26, 90, 0xffe14d, 0.16).setDepth(11);
+    this.tweens.add({ targets: beam, alpha: 0.05, duration: 800, yoyo: true, repeat: -1 });
+    this.nestBeam = beam;
+  };
+
+  /* 捡蛋 / 孵化 / 宠物更新（主循环每帧调用） */
+  Game.prototype.updatePet = function (dt) {
+    var run = this.run, pet = run.pet;
+    if (!pet) return;
+    var p = this.player;
+
+    // ---- 蛋巢：靠近捡蛋 ----
+    if (this.nestSprite && this.nestSprite.active) {
+      var d = Phaser.Math.Distance.Between(p.x, p.y, this.nestSprite.x, this.nestSprite.y);
+      if (d < D.PET.eggPickupDist) {
+        pet.stage = 'egg';
+        pet.hatch = 0;
+        this.nestSprite.destroy(); this.nestSprite = null;
+        if (this.nestBeam) { this.nestBeam.destroy(); this.nestBeam = null; }
+        this.eggSprite = this.add.image(p.x, p.y - 40, 'pet_egg').setDepth(19);
+        R.Sfx.play('coin'); R.Sfx.play('select');
+        this.hud.showBanner('🥚 获得宠物蛋！', '击杀 ' + pet.need + ' 只怪物孵化', '#ffe9a8');
+        this.burst(p.x, p.y, 0xfff6e2, 14);
+      }
+    }
+
+    // ---- 蛋：跟着玩家头顶飘 ----
+    if (pet.stage === 'egg' && this.eggSprite && this.eggSprite.active) {
+      pet.angle += dt * 2;
+      var ex = p.x + Math.cos(pet.angle) * 16, ey = p.y - 40 + Math.sin(pet.angle) * 6;
+      this.eggSprite.setPosition(ex, ey);
+      // 头顶孵化进度条
+      if (!this.eggBar) {
+        this.eggBarBg = this.add.rectangle(ex, ey - 30, 40, 6, 0x2b1d2b, 0.8).setDepth(19);
+        this.eggBar = this.add.rectangle(ex - 20, ey - 30, 0, 4, 0xffd23f, 1).setOrigin(0, 0.5).setDepth(19);
+      }
+      var prog = Phaser.Math.Clamp(pet.hatch / pet.need, 0, 1);
+      this.eggBarBg.setPosition(ex, ey - 30);
+      this.eggBar.setPosition(ex - 20, ey - 30);
+      this.eggBar.width = 40 * prog;
+    }
+
+    // ---- 已孵化：环绕跟随 + 自动攻击 ----
+    if (pet.stage === 'pet') {
+      if (!this.petSprite || !this.petSprite.active) {
+        this.petSprite = this.add.image(p.x, p.y - 40, 'pet_buddy').setDepth(19);
+        this.hud.showBanner('🐣 宠物孵化啦！', '它会同你并肩作战', '#ffe14d');
+        R.Sfx.play('reward');
+        this.burst(p.x, p.y, 0xffd23f, 18);
+      }
+      pet.angle += dt * 1.6;
+      var tx = p.x + Math.cos(pet.angle) * D.PET.followDist;
+      var ty = p.y + Math.sin(pet.angle) * D.PET.followDist * 0.7 - 26;
+      this.petSprite.x += (tx - this.petSprite.x) * Math.min(1, dt * 6);
+      this.petSprite.y += (ty - this.petSprite.y) * Math.min(1, dt * 6);
+      this.petSprite.setFlipX(p.x > this.petSprite.x);
+
+      // 攻击计时
+      pet.cd -= dt;
+      if (pet.cd <= 0) {
+        var target = this.nearestEnemy(this.petSprite.x, this.petSprite.y, D.PET.range);
+        if (target) {
+          pet.cd = D.PET.cd;
+          var ang = Phaser.Math.Angle.Between(this.petSprite.x, this.petSprite.y, target.x, target.y);
+          var b = this.spawnImage(this.bulletsP, 'pet_ball', this.petSprite.x, this.petSprite.y);
+          b.setDepth(16).setScale(0.9);
+          b.body.setAllowGravity(false);
+          b.body.setCircle(8, 4, 4);
+          b.body.setVelocity(Math.cos(ang) * D.PET.bulletSpeed, Math.sin(ang) * D.PET.bulletSpeed);
+          b.dmg = Math.max(2, Math.round(D.PET.atk * (run.metaPetAtk || 1)));
+          b.hitSet = {};   // 命中去重表（updateBullets 必需）
+          b.life = 1.6;
+          R.Sfx.play('bubble', 120);
+        }
+      }
+    }
+  };
+
+  /* 击杀计数 → 孵化（killEnemy 里调用） */
+  Game.prototype.petOnKill = function () {
+    var pet = this.run.pet;
+    if (!pet || pet.stage !== 'egg') return;
+    pet.hatch++;
+    if (pet.hatch >= pet.need) {
+      pet.stage = 'pet';
+      if (this.eggSprite) { this.eggSprite.destroy(); this.eggSprite = null; }
+      if (this.eggBar) { this.eggBar.destroy(); this.eggBar = null; }
+      if (this.eggBarBg) { this.eggBarBg.destroy(); this.eggBarBg = null; }
+      // updatePet 下一帧会创建 petSprite 并提示
+    }
   };
 
   Game.prototype.ringPosition = function () {
@@ -998,7 +1330,7 @@
     b.body.setCircle(9, 4, 4);
     var sp = e.def.bullet.speed;
     b.body.setVelocity(Math.cos(ang) * sp, Math.sin(ang) * sp);
-    b.dmg = e.elite ? 2 : 1;   // 伤害规则：小怪子弹 1 格，精英子弹 2 格
+    b.dmg = D.scaling.dmg(e.elite ? D.DMG.eliteBullet : D.DMG.bullet, this.run.room, this.run.chapter);
     b.life = 3.2;
     R.Sfx.play('shot', 150);
   };
@@ -1052,7 +1384,10 @@
     if (finalDmg >= 0) R.Sfx.play('hit', 70);
 
     if (this.run.buffs.vamp && opts.crit) {
-      if (this.run.heal(1) > 0) this.popText(this.player.x, this.player.y - 50, '+1', '#4ee07a');
+      // 吸血：按本次暴击伤害的 8% 回复（至少 1 点）
+      var vamp = Math.max(1, Math.round(finalDmg * 0.08));
+      var healed = this.run.heal(vamp);
+      if (healed > 0) this.popText(this.player.x, this.player.y - 50, '+' + healed, '#4ee07a');
     }
 
     if (e.hp <= 0) this.killEnemy(e);
@@ -1064,6 +1399,7 @@
     var run = this.run;
     run.kills++;
     this.killedThisRoom = (this.killedThisRoom || 0) + 1;
+    this.petOnKill();   // 宠物蛋孵化计数
     R.Sfx.play('kill', 80);
 
     // 碎片
@@ -1081,7 +1417,7 @@
     }
     // 红心
     if (Math.random() < (e.elite ? 0.35 : 0.022)) {
-      this.dropPickup('pickup_heart', e.x, e.y, { heal: 1 });
+      this.dropPickup('pickup_heart', e.x, e.y, { heal: D.HP.healOrb });
     }
 
     // 特殊掉落：护盾（精英 20% / 小怪 2%）、血量上限（精英 10% / 小怪 1.2%）
@@ -1130,7 +1466,7 @@
     }
     for (var k = 0; k < 2; k++) {
       var a2 = Math.random() * Math.PI * 2;
-      this.dropPickup('pickup_heart', e.x + Math.cos(a2) * 70, e.y + Math.sin(a2) * 70, { heal: 1 });
+      this.dropPickup('pickup_heart', e.x + Math.cos(a2) * 70, e.y + Math.sin(a2) * 70, { heal: D.HP.healOrb });
     }
 
     if (e.shadow) e.shadow.destroy();
@@ -1239,12 +1575,18 @@
       R.Sfx.play('coin', 80);
       this.popText(it.x, it.y - 20, '+' + n, '#ffd23f');
     }
-    if (d.heal) { run.heal(d.heal); R.Sfx.play('heal'); this.popText(it.x, it.y - 20, '+1', '#4ee07a'); }
-    // 血量上限 +1（同时回 1 格）
+    if (d.heal) {
+      var got = run.heal(d.heal);
+      R.Sfx.play('heal');
+      this.popText(it.x, it.y - 20, '+' + (got || 0), '#4ee07a');
+    }
+    // 生命上限道具：上限 +20，同时补满这 20 点
     if (d.maxhp) {
-      run.maxHp += 1; run.hp += 1;
+      var addHp = D.HP.maxHpItem;
+      run.maxHp += addHp;
+      run.hp = Math.min(run.maxHp, run.hp + addHp);   // 补 20 但不超过新上限
       R.Sfx.play('heal'); R.Sfx.play('reward', 120);
-      this.popText(it.x, it.y - 22, '生命上限 +1！', '#ff8a9a', 24);
+      this.popText(it.x, it.y - 22, '生命上限 +' + addHp + '！', '#ff8a9a', 24);
       this.burst(it.x, it.y, 0xff8a9a, 12);
       this.hud.refresh(run);
     }
@@ -1269,12 +1611,14 @@
   /* ---------------- Boss ---------------- */
   Game.prototype.spawnBoss = function () {
     var self = this;
+    var run = this.run;
     var ch = this.chapterDef;
     var bossKey = this.bossKey || ch.boss;
     var def = D.BOSSES[bossKey];
     var pos = this.ringPosition();
 
     var img = this.spawnImage(this.enemies, def.art, pos.x, pos.y);
+    if (!img) return null;   // Boss 池满（极端情况），避免崩溃
     img.setDepth(17);
     img.body.setAllowGravity(false);
     img.etype = 'boss';
@@ -1283,7 +1627,7 @@
     img.def = { speed: 60, kind: 'boss', float: false, size: def.size };
     img.maxHp = def.hp;
     img.hp = def.hp;
-    img.dmg = def.dmg;
+    img.dmg = D.scaling.dmg(def.dmg, run.room, run.chapter);
     img.xp = def.xp;
     img.gold = def.gold;
     img.hitR = def.size * 0.42;
@@ -1390,7 +1734,7 @@
         e.aiState = 'idle';
         e.aiTimer = def.jumpCd * (0.8 + Math.random() * 0.4);
         // 落地冲击波
-        this.ringWave(e.x, e.y, def.shockwaveDmg);
+        this.ringWave(e.x, e.y, D.scaling.dmg(def.shockwaveDmg, this.run.room, this.run.chapter));
         this.cameras.main.shake(220, 0.012);
         R.Sfx.play('explode');
         // 半血后狂暴：环形弹幕更频繁
@@ -1459,26 +1803,27 @@
       b.body.setAllowGravity(false);
       b.body.setCircle(10, 3, 3);
       b.body.setVelocity(Math.cos(ang) * 230, Math.sin(ang) * 230);
-      b.dmg = 2;   // Boss 弹幕每发 2 格
+      b.dmg = D.scaling.dmg(D.DMG.bossBullet, this.run.room, this.run.chapter);
       b.life = 4;
     }
     R.Sfx.play('boss', 300);
   };
 
   /* ---------------- 护盾系统 ----------------
-   * 5 个等级：初级挡 1 格 → 顶级挡 5 格。
-   * 拾取更高等级 → 直接换装（满格）；同级或更低 → 充满当前护盾。
-   * 每被击中一次消耗 1 格，破盾后需重新拾取。 */
+   * 5 个等级：每级 30 点护盾值（Lv.1 = 30 → Lv.5 = 150，相当于 30% ~ 150% 生命）。
+   * 拾取更高等级 → 直接换装（充满）；同级或更低 → 充满当前护盾。
+   * 受击时按伤害点数扣除，打穿后溢出伤害继续进入血量。 */
   Game.prototype.equipShield = function (tier, x, y) {
     var run = this.run;
     tier = Phaser.Math.Clamp(tier | 0, 1, 5);
-    var s = run.shield = run.shield || { level: 0, hp: 0 };
+    var maxSh = tier * D.HP.shieldPerTier;
+    var s = run.shield = run.shield || { level: 0, hp: 0, max: 0 };
     if (tier > s.level) {
-      s.level = tier; s.hp = tier;
+      s.level = tier; s.max = maxSh; s.hp = maxSh;
       this.popText(x !== undefined ? x : this.player.x, (y !== undefined ? y : this.player.y) - 24,
-        '护盾 Lv.' + tier + '！', '#53d7ff', 24);
+        '护盾 Lv.' + tier + '（' + maxSh + '）！', '#53d7ff', 24);
     } else {
-      s.hp = s.level;
+      s.max = maxSh; s.hp = maxSh;
       this.popText(x !== undefined ? x : this.player.x, (y !== undefined ? y : this.player.y) - 24,
         '护盾已充满', '#53d7ff', 20);
     }
@@ -1488,33 +1833,49 @@
   };
 
   /* ---------------- 玩家受伤 ---------------- */
-  Game.prototype.hurtPlayer = function (dmg) {    var run = this.run;
+  Game.prototype.hurtPlayer = function (dmg) {
+    var run = this.run;
     if (this.devGod) return;                      // 测试模式：无敌
     if (this.data.get('invuln') > 0) return;
     if (!run.alive) return;
+    dmg = Math.max(1, Math.round((dmg || 0) * (run.dmgTakenMul ? run.dmgTakenMul() : 1)));
 
-    // 护盾优先抵挡：每被击中一次消耗 1 格
+    // 护盾优先吸收：按点数扣减，打穿后溢出部分进入血量
     var sh = run.shield;
     if (sh && sh.hp > 0) {
-      sh.hp -= 1;
-      this.data.set('invuln', 0.9);
+      var raw = dmg;
+      sh.hp -= dmg;
+      var overflow = 0;
+      if (sh.hp <= 0) { overflow = -sh.hp; sh.hp = 0; sh.level = 0; sh.max = 0; }
+      this.data.set('invuln', D.HP.invuln);
       R.Sfx.play('ring');
-      this.popText(this.player.x, this.player.y - 64,
-        sh.hp > 0 ? '护盾抵挡！' : '护盾破碎！', '#53d7ff', 22);
       this.cameras.main.flash(120, 80, 200, 255);
-      this.hud.refresh(run);
-      R.emit('player:hurt', { hp: run.hp, shield: true });
+      if (overflow > 0) {
+        this.popText(this.player.x, this.player.y - 64, '护盾破碎！', '#53d7ff', 22);
+        run.takeDamage(overflow);
+        this.hud.hurtFlash();
+        this.cameras.main.shake(180, 0.01);
+        this.hud.refresh(run);
+        R.emit('player:hurt', { hp: run.hp, shield: true, broken: true, dmg: raw, overflow: overflow });
+        if (!run.alive) this.gameOver();
+      } else {
+        this.popText(this.player.x, this.player.y - 64,
+          '护盾 -' + raw + '（余 ' + Math.max(0, sh.hp) + '）', '#53d7ff', 20);
+        this.hud.refresh(run);
+        R.emit('player:hurt', { hp: run.hp, shield: true, dmg: raw });
+      }
       return;
     }
 
     run.takeDamage(dmg);
-    this.data.set('invuln', 0.9);
+    this.data.set('invuln', D.HP.invuln);
+    this.popText(this.player.x, this.player.y - 64, '-' + dmg, '#ff6b7a', 22);
     this.hud.hurtFlash();
     this.hud.refresh(run);
     R.Sfx.play('hurt');
     this.cameras.main.shake(180, 0.01);
     this.cameras.main.flash(120, 255, 90, 90);
-    R.emit('player:hurt', { hp: run.hp });
+    R.emit('player:hurt', { hp: run.hp, dmg: dmg });
     if (!run.alive) this.gameOver();
   };
 
@@ -1742,6 +2103,11 @@
       run.time += dt;
     }
 
+    // 回血被动：按秒回复（小数累积，满 1 点才真正加血）
+    if (run.tickRegen(dt) > 0) this.hud.refresh(run);
+
+    this.updatePet(dt);
+    this.updateProps(dt);
     this.updatePlayer(dt);
     this.updateWeapons(dt);
     this.updateBullets(dt);
@@ -1761,7 +2127,9 @@
       if (!e.active) return;
       var d = Phaser.Math.Distance.Between(e.x, e.y, this.player.x, this.player.y);
       if (d < e.hitR + 24) {
-        this.hurtPlayer(e.isBoss ? 3 : (e.elite ? 2 : 1));   // 小怪1 / 精英2 / Boss3
+        // 接触伤害走数值体系：小怪 8 / 精英 16 / Boss 24（随关数与章节放大）
+        var touchBase = e.isBoss ? D.DMG.boss : (e.elite ? D.DMG.elite : D.DMG.mob);
+        this.hurtPlayer(D.scaling.dmg(touchBase, this.run.room, this.run.chapter));
       }
     }, this);
 

@@ -11,8 +11,10 @@
     this.seed = opts.seed || (Math.random() * 1e9 | 0);
     // 简易可复现随机（mulberry32）
     this._s = this.seed >>> 0;
-    this.hp = 3;               // 初始 3 格血
-    this.maxHp = 3;
+    this.hp = D.HP.base;        // 数值血量（默认 100）
+    this.maxHp = D.HP.base;
+    this.hpFloat = 0;           // 回血累加的小数缓冲（回血被动是小数/秒）
+    this.dmgTaken = 0;          // 本局累计受到伤害（结算展示用）
     this.gold = 0;
     this.kills = 0;
     this.room = 0;             // 房间序号
@@ -41,10 +43,24 @@
       this.buffs.speed += m.spd;
       this.buffs.magnet += m.magnet;
       this.metaGoldMul = 1 + m.gain;
-      if (m.hp > 0) { this.maxHp += m.hp; this.hp += m.hp; }
+      this.metaPetAtk = 1 + (m.petAtk || 0);       // 宠物伤害倍率
+      this.metaPetHatch = Math.max(0.4, 1 - (m.petHatch || 0));   // 孵化需求折减（最低 40%）
+      if (this.metaPetHatch < 0.4) this.metaPetHatch = 0.4;
+      this.metaWaveAdd = m.waveAdd || 0;           // 每波额外怪物数
+      if (m.hp > 0) { this.maxHp += m.hp; this.hp += m.hp; }   // m.hp 已是点数
     } else {
       this.metaGoldMul = 1;
+      this.metaPetAtk = 1; this.metaPetHatch = 1; this.metaWaveAdd = 0;
     }
+
+    /* ---------------- 宠物状态（每局重新孵化） ----------------
+     * stage: 'none' 未获得蛋 | 'egg' 随身携带 | 'pet' 已孵化
+     * hatch: 已击杀数（携带期间累计） */
+        var need = Math.max(8, Math.round(D.PET.hatchKills * this.metaPetHatch));
+    this.pet = { stage: 'none', hatch: 0, need: need, cd: 0, angle: 0 };
+
+    /* 诅咒（祭坛负面效果，本局持续）：id -> true */
+    this.curses = {};
   }
 
   Run.prototype.rand = function () {
@@ -95,7 +111,7 @@
       level: lv,
       maxLevel: Run.WEAPON_MAX,
       dmg: base.dmg * (1 + b.dmg) * (1 + k * 0.12),
-      cd: base.cd / (1 + b.atkSpeed) / (1 + k * 0.05),
+      cd: base.cd / this.atkSpeedMul() / (1 + k * 0.05),
       speed: base.speed * (1 + b.bulletSpd),
       radius: base.radius * (1 + b.size) * (1 + k * 0.04),
       count: base.count + b.bonusMult + (lv >= 7 ? 2 : (lv >= 4 ? 1 : 0)),
@@ -115,7 +131,21 @@
     };
   };
 
-  Run.prototype.speedMul = function () { return 1 + this.buffs.speed; };
+  Run.prototype.speedMul = function () {
+    var m = 1 + this.buffs.speed;
+    if (this.curses && this.curses.slow) m *= 0.8;      // 迟缓诅咒
+    return m;
+  };
+  /* 攻速乘区（含诅咒） */
+  Run.prototype.atkSpeedMul = function () {
+    var m = 1 + this.buffs.atkSpeed;
+    if (this.curses && this.curses.clumsy) m *= 0.8;    // 笨拙诅咒
+    return m;
+  };
+  /* 受伤乘区（含诅咒） */
+  Run.prototype.dmgTakenMul = function () {
+    return (this.curses && this.curses.frail) ? 1.25 : 1;  // 脆弱诅咒
+  };
   Run.prototype.magnetR = function () { return 90 * (1 + this.buffs.magnet); };
 
   /* 加经验，返回本次升了几级 */
@@ -155,7 +185,7 @@
       }
       if (taken >= (u.max || 1)) return;
       var w2 = u.type === 'passive' ? 1.15 : 1;
-      if (u.id === 'p_maxHp' && self.hp <= 2) w2 *= 2.2; // 残血更容易刷到回血
+      if (u.id === 'p_maxHp' && self.hp <= self.maxHp * 0.3) w2 *= 2.2; // 残血（<30%）更容易刷到回血
       pool.push({ def: u, w: w2 });
     });
     var out = [];
@@ -199,22 +229,45 @@
       var p = D.PASSIVES[def.passive];
       var b = this.buffs;
       if (p.fmt === 'p') b[def.passive] += p.v / 100;
-      else if (def.passive === 'maxHp') { this.maxHp += p.v; this.hp = Math.min(this.maxHp, this.hp + p.v); }
-      else if (def.passive === 'regen') b.regen += p.v;
+      else if (def.passive === 'maxHp') {
+        // 生命上限 +20，同时把新增的额度补成当前生命
+        this.maxHp += p.v;
+        this.hp = Math.min(this.maxHp, this.hp + p.v);
+      }
+      else if (def.passive === 'regen') b.regen += p.v;   // 每秒 +0.8 点
     } else if (def.apply) def.apply(this.buffs);
     return def;
   };
 
+  /* 受到伤害（数值）。返回是否存活 */
   Run.prototype.takeDamage = function (n) {
+    n = Math.max(1, Math.round(n || 0));
     this.hp -= n;
+    this.dmgTaken += n;
     if (this.hp <= 0) { this.hp = 0; this.alive = false; }
     return this.alive;
   };
 
+  /* 回复生命（数值，支持小数累积）。返回实际回复量 */
   Run.prototype.heal = function (n) {
+    if (!(n > 0)) return 0;
     var before = this.hp;
-    this.hp = Math.min(this.maxHp, this.hp + n);
+    var want = this.hp + n;
+    if (want > this.maxHp) want = this.maxHp;
+    this.hp = want;
     return this.hp - before;
+  };
+
+  /* 每帧回血（回血被动：小数/秒，攒够 1 点才回，避免显示抖动） */
+  Run.prototype.tickRegen = function (dt) {
+    var r = this.buffs.regen;
+    if (!r || r <= 0) return 0;
+    if (this.hp >= this.maxHp) { this.hpFloat = 0; return 0; }
+    this.hpFloat += r * dt;
+    var whole = Math.floor(this.hpFloat);
+    if (whole <= 0) return 0;
+    this.hpFloat -= whole;
+    return this.heal(whole);
   };
 
   Run.prototype.chapterDef = function () {

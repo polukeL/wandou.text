@@ -30,6 +30,9 @@
     R.Art.generate(this);
     R.Art.generateUI(this);      // UI 占位图
     R.Art.generateObstacles(this); // 建筑/障碍物占位图（ob_*）
+    R.Art.generateSkins(this);     // 角色皮肤占位图（skin_*）
+    R.Art.generatePet(this);       // 宠物系统贴图（蛋巢/蛋/宠物）
+    R.Art.generateProps(this);     // 祭坛与泉水贴图
     R.applyRealArt(this);
     // 等待 localStorage 自定义皮肤纹理写入完成再进标题页
     R.UISkin.waitReady(function () { self.scene.start('Title'); });
