@@ -155,6 +155,13 @@
     // 测试模式入口：只有地址带 ?dev=1 且密码校验通过才出现（详见 core/devmode.js）
     if (R.Dev && R.Dev.exposed()) this.buildDevEntry();
 
+    // 场景大图后台加载（v0.8.2）：1600×1600 整图在进入标题页后下载，
+    // 不阻塞任何界面；下载完成地面自动换成正式图
+    if (R.loadTilesLater) {
+      var self = this;
+      this.time.delayedCall(100, function () { R.loadTilesLater(self); });
+    }
+
     // 最佳记录
     var best = 0;
     try { best = parseInt(localStorage.getItem('pearogue.best') || '0', 10) || 0; } catch (e) {}

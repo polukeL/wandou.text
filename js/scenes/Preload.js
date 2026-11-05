@@ -13,6 +13,7 @@
   Preload.prototype.preload = function () {
     var self = this;
     var w = this.scale.width, h = this.scale.height;
+    this._bootStart = Date.now();   // 最短显示时长计时起点（v0.8.3）
 
     /* ---------- 加载界面（v0.8.1：按效果图布局） ----------
      * 层级（depth 由小到大）：铺底纯色 < 背景插画 < 进度条 < 文字
@@ -21,13 +22,64 @@
     // 1) 纯色铺底：等背景图加载期间不至于露出空白
     this.add.rectangle(w / 2, h / 2, w, h, 0x2b1d2b).setDepth(-3);
 
-    // 2) 背景插画：与 HTML 启动屏同一张 assets/ui/boot_bg.png（浏览器已缓存，秒开）
-    //    队列第一项是它，剩余资源加载期间一直可见。
-    var bgKey = 'boot_bg_img';
-    if (!this.textures.exists(bgKey)) {
+    // 2) 背景插画 + 标题 logo（v0.8.3）：优先直接复用 HTML 启动屏已加载的
+    //    <img> 元素（浏览器缓存命中，零等待），第一帧就完整显示。
+    //    注意：不能把 img 元素直接喂给 textures.addImage——它会读 CSS 布局尺寸
+    //    （而非原图 naturalWidth），导致背景被 cover 放大变形；先画到 canvas。
+    function takeDomImage(key, domId) {
+      var el = document.getElementById(domId);
+      if (el && el.complete && el.naturalWidth > 0 && !self.textures.exists(key)) {
+        try {
+          var c = document.createElement('canvas');
+          c.width = el.naturalWidth;
+          c.height = el.naturalHeight;
+          c.getContext('2d').drawImage(el, 0, 0);
+          self.textures.addCanvas(key, c);
+          return true;
+        } catch (e) { return false; }
+      }
+      return false;
+    }
+    function showBg(key) { self._addScreenBg(key); }
+    function showLogo() {
+      var src = self.textures.get('boot_logo_img').getSourceImage();
+      var lw = w * 0.511;
+      var lh = src && src.height ? lw * src.height / src.width : lw * 0.6;
+      self.add.image(w / 2, h * 0.14 + lh / 2, 'boot_logo_img')
+        .setDisplaySize(lw, lh).setDepth(2);
+    }
+    if (takeDomImage('boot_bg_img', 'boot-bg')) showBg('boot_bg_img');
+    if (takeDomImage('boot_logo_img', 'boot-logo')) showLogo();
+
+    // DOM 图还没就绪（慢网 HTML 阶段没下完）：加载期间持续轮询，
+    // 一旦 HTML 的 <img> 完成就立即显示（通常比 loader 队列更快）
+    var needBg = !this.textures.exists('boot_bg_img');
+    var needLogo = !this.textures.exists('boot_logo_img');
+    if (needBg || needLogo) {
+      var polls = 0;
+      var poll = this.time.addEvent({
+        delay: 120, repeat: 30,
+        callback: function () {
+          polls++;
+          if (needBg && takeDomImage('boot_bg_img', 'boot-bg')) { needBg = false; showBg('boot_bg_img'); }
+          if (needLogo && takeDomImage('boot_logo_img', 'boot-logo')) { needLogo = false; showLogo(); }
+          if ((!needBg && !needLogo) || polls > 30) poll.remove();
+        }
+      });
+    }
+
+    // 队列兜底：DOM 一直没就绪才走 loader（logo 放最前，最先下载）
+    if (needLogo) {
+      var logoUrl = R.RESOLVED && R.RESOLVED['boot_logo'];
+      if (logoUrl) {
+        this.load.image('boot_logo_img', logoUrl);
+        this.load.once('filecomplete-image-boot_logo_img', showLogo);
+      }
+    }
+    if (needBg) {
       var bgUrl = (R.RESOLVED && R.RESOLVED['boot_bg']) || 'assets/ui/boot_bg.png';
-      this.load.image(bgKey, bgUrl);
-      this.load.once('filecomplete-image-' + bgKey, function () { self._addScreenBg(bgKey); });
+      this.load.image('boot_bg_img', bgUrl);
+      this.load.once('filecomplete-image-boot_bg_img', function () { showBg('boot_bg_img'); });
     }
 
     // 3) 读条（368×40，位于屏幕 81.5% 高度处）
@@ -85,7 +137,9 @@
       }
     });
 
-    R.loadOptionalAssets(this);
+    // skipBigTiles=true：1600×1600 场景大图不进阻塞队列（v0.8.2），
+    // 由 Title 场景后台加载，避免手机网络下读条卡住进不了游戏
+    R.loadOptionalAssets(this, true);
     R.UISkin.loadStored(this);   // UI 皮肤：assets/ui/*.png + 前端上传的自定义图
   };
 
@@ -100,8 +154,14 @@
     R.Art.generatePet(this);       // 宠物系统贴图（蛋巢/蛋/宠物）
     R.Art.generateProps(this);     // 祭坛与泉水贴图
     R.applyRealArt(this);
-    // 等待 localStorage 自定义皮肤纹理写入完成再进标题页
-    R.UISkin.waitReady(function () { self.scene.start('Title'); });
+    // 等待 localStorage 自定义皮肤纹理写入完成再进标题页；
+    // 同时保证加载画面（背景插画 + logo + 读条）至少完整显示 1.2 秒，
+    // 网络快时也不会一闪而过看不见 logo（v0.8.3）。
+    var MIN_SHOW = 1200;
+    R.UISkin.waitReady(function () {
+      var left = MIN_SHOW - (Date.now() - (self._bootStart || 0));
+      self.time.delayedCall(Math.max(0, left), function () { self.scene.start('Title'); });
+    });
   };
 
   /* 铺一张全屏背景图（cover 方式：等比放大到铺满，超出部分裁掉，不拉伸变形） */

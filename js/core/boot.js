@@ -128,6 +128,13 @@
       return [R.ASSET_DIRS.audio + name + '.mp3',
               R.ASSET_DIRS.audio + name + '.ogg'];
     }
+    // 场景大图（v0.8.2）：png 优先，无 png 时用 jpg（大图导出 JPG 体积小得多）
+    if (id === 'tile' || id.indexOf('tile_ch') === 0) {
+      return [R.ASSET_DIRS.world + id + '.png',
+              R.ASSET_DIRS.world + id + '.jpg',
+              'assets/' + id + '.png',
+              'assets/' + id + '.jpg'];
+    }
     var g = R.ASSET_GROUP[id];
     if (g) return [R.ASSET_DIRS[g] + id + '.png', 'assets/' + id + '.png'];
     return ['assets/' + id + '.png'];
@@ -183,6 +190,11 @@
    * 这四张不参与占位图替换，也不按 displaySize 缩放为小尺寸，单独处理。 */
   R.SCREEN_BG_IDS = ['boot_bg', 'boot_logo', 'title_bg', 'title_plate'];
 
+  /* 场景大图（v0.8.2）：1600×1600 整图，体积大（数百 KB～数 MB/张）。
+   * 不放进 Preload 阻塞队列（否则手机上读条卡住进不了主界面），
+   * 由 Title 场景 R.loadTilesLater 后台加载，加载完成地面自动换新图。 */
+  R.BIG_TILE_IDS = ['tile', 'tile_ch1', 'tile_ch2', 'tile_ch3'];
+
   /* ---------------------------------------------------------
    * 预解析资源路径（v0.7.6）
    * ---------------------------------------------------------
@@ -215,6 +227,8 @@
     // 音效（v0.8.2）：aud_<name>，探测 assets/audio/<name>.mp3 / .ogg
     ['bgm_main', 'shoot', 'hit', 'kill', 'hurt', 'pickup', 'level', 'coin', 'heal', 'reward', 'boss']
       .forEach(function (k) { push('aud_' + k); });
+    // 场景大图（v0.8.2）：探测但不进 Preload 阻塞队列，见 R.BIG_TILE_IDS
+    R.BIG_TILE_IDS.forEach(function (id) { push(id); });
     // 升级卡图标：占位图 key 是 icon_<name>，真实图放 assets/icons/<name>.png
     (R.UI_ICONS || []).forEach(function (n) { push('icon_' + n); });
     // 精英怪变体（v0.8.0）：<art>_elite
@@ -251,7 +265,7 @@
 
   /* 可选的正式音频/贴图预加载：
    * assets/ 分组目录下放了同名文件会自动覆盖占位图；没有就用占位。 */
-  R.loadOptionalAssets = function (scene) {
+  R.loadOptionalAssets = function (scene, skipBigTiles) {
     var keys = R.realArtKeys();
     var hit = [], miss = [];
     keys.forEach(function (id) {
@@ -260,9 +274,11 @@
       else miss.push(id);
     });
     // 正式贴图 → <id>_real，create() 阶段再由 applyRealArt 覆盖 <id>
-    // （aud_ 前缀是音效，由上面的 load.audio 处理，不能当贴图加载）
+    // （aud_ 前缀是音效，由 load.audio 处理；skipBigTiles 时场景大图
+    //   也不进队列——1600×1600 整图体积大，阻塞在 Preload 会让手机读条卡住）
     hit.forEach(function (id) {
       if (id.indexOf('aud_') === 0) return;
+      if (skipBigTiles && R.BIG_TILE_IDS.indexOf(id) >= 0) return;
       if (!scene.textures.exists(id + '_real')) scene.load.image(id + '_real', R.RESOLVED[id]);
     });
     if (miss.length) console.info('[豌豆镇] 使用占位图（未找到素材）: ' + miss.join(', '));
@@ -289,6 +305,28 @@
           '\n请确认：1) 文件是真正的 PNG 且未损坏；2) 通过 http:// 访问而不是 file:// 双击打开；3) 浏览器无缓存（Ctrl+F5 强刷）');
       }
     });
+  };
+
+  /* 场景大图后台加载（v0.8.2）：Title 场景创建后调用。
+   * 1600×1600 整图体积大，不阻塞任何界面；下载完成后 applyRealArt
+   * 用同名 key 覆盖纹理，正在显示/之后进入的对局地面自动换成正式图。
+   * 没加载完之前 Game.attachFloor 会用占位色块兜底，不影响游玩。 */
+  R.loadTilesLater = function (scene) {
+    var pending = 0;
+    R.BIG_TILE_IDS.forEach(function (id) {
+      var url = R.RESOLVED[id];
+      if (!url) return;
+      var key = id + '_real';
+      if (scene.textures.exists(key)) return;
+      scene.load.image(key, url);
+      pending++;
+    });
+    if (!pending) return;
+    console.info('[豌豆镇] 场景大图后台加载中（' + pending + ' 张，不阻塞进入游戏）');
+    scene.load.once('complete', function () {
+      R.applyRealArt(scene);
+    });
+    scene.load.start();
   };
 
   /* 把 assets 下成功加载的真实贴图替换占位图 */
