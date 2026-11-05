@@ -59,7 +59,6 @@
     if (!this.textures.exists(skinId)) skinId = 'player';
     this.skinId = skinId;
     this.player = this.physics.add.sprite(ARENA / 2, ARENA / 2, skinId);
-<<<<<<< HEAD
     // 尺寸：D.SIZE.player（视觉与碰撞体同步缩放）
     var pScale = (D.SIZE && D.SIZE.player) || 1;
     var pR = 26 * pScale;
@@ -69,10 +68,6 @@
     this.player.setScale(pScale);
     this.playerBaseScale = pScale;
     this.playerHitR = pR;
-=======
-    this.player.setDepth(20).setCircle(26, 22, 22).setCollideWorldBounds(true);
-    this.player.setScale(1.0);
->>>>>>> 2ff3b08ccc2a4f9637f71f978faede96af490ac8
     this.data.set('invuln', 0);
     this.aim = new Phaser.Math.Vector2(1, 0);
 
@@ -1712,11 +1707,8 @@
 
     var img = this.spawnImage(this.enemies, def.art, pos.x, pos.y);
     if (!img) return null;   // Boss 池满（极端情况），避免崩溃
-<<<<<<< HEAD
     var bossScale = (D.SIZE && D.SIZE.boss !== undefined) ? D.SIZE.boss : 1;
     if (def.scale !== undefined) bossScale = def.scale;
-=======
->>>>>>> 2ff3b08ccc2a4f9637f71f978faede96af490ac8
     img.setDepth(17);
     img.body.setAllowGravity(false);
     img.etype = 'boss';

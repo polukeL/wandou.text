@@ -37,6 +37,24 @@
     return true;
   };
 
+  /* 全局脚本错误兜底（v0.7.9）
+   * 某个 js 文件被改坏 / 部署成不完整版本时（典型：git 冲突标记残留），
+   * 浏览器只会白屏卡住，玩家看不到任何线索。这里把错误显示到页面上。 */
+  var bootErrorShown = false;
+  window.addEventListener('error', function (e) {
+    if (bootErrorShown) return;
+    var msg = (e && e.message) ? e.message : '';
+    // 只拦脚本语法/运行错误，图片 404 之类不打扰玩家
+    if (!msg || /Unexpected token|is not a function|is not defined|SyntaxError/i.test(msg) === false) return;
+    bootErrorShown = true;
+    R.showError('<h2>游戏启动出错了</h2>' +
+      '<p>错误信息：<code>' + msg.replace(/[<>]/g, '') + '</code></p>' +
+      '<p style="margin-top:12px">如果是你自己部署的版本，最常见的原因是<br>' +
+      '某个 js 文件里残留了 git 合并冲突标记（<code>&lt;&lt;&lt;&lt;&lt;&lt;&lt;</code>），' +
+      '导致该文件整体无法解析。</p>' +
+      '<p style="margin-top:8px">请检查并重新部署，或按 F12 查看具体是哪个文件报错。</p>');
+  }, true);
+
   R.start = function () {
     if (!R.checkEngine()) return;
     // file:// 直开检测：浏览器会拦截图片加载，assets 覆盖全部失效
@@ -55,6 +73,31 @@
     // 测试模式：先把地址栏 ?dev=1&key=xxx 换成授权（普通玩家无感）
     if (R.Dev) R.Dev.init();
     if (R.Meta) R.Meta.load();   // 载入研究所存档（金币/永久强化）
+
+    // 模块完整性自检：某个 js 文件语法错误 / 被错误提交（如残留 git 冲突标记）
+    // 时，对应模块的方法会缺失，这里提前报出来，避免只卡在启动屏看不出原因。
+    var missing = [];
+    if (!R.boot) missing.push('core/boot.js');
+    if (!R.Art || !R.Art.generate) missing.push('core/art.js');
+    if (!R.DATA) missing.push('core/data.js');
+    if (!R.UISkin) missing.push('ui/skin.js');
+    if (missing.length) {
+      R.showError('<h2>游戏文件加载失败</h2>' +
+        '<p>以下模块没有正确加载：<b>' + missing.join('、') + '</b></p>' +
+        '<p style="margin-top:12px">常见原因：</p>' +
+        '<p style="margin-top:8px">① 部署时文件被覆盖成不完整版本（如 git 合并冲突未解决，文件里残留 ' +
+        '<code>&lt;&lt;&lt;&lt;&lt;&lt;&lt;</code> 标记）<br>' +
+        '② 上传中断，文件不完整<br>' +
+        '③ 强缓存了旧的损坏版本 → 试试 Ctrl+F5 / 清缓存</p>' +
+        '<p style="margin-top:12px">开发者：按 F12 看 Console 第一条红色报错。</p>');
+      return;
+    }
+    // 兼容极旧版本（没有 prepareAssets 时直接启动，不让游戏卡死）
+    if (typeof R.prepareAssets !== 'function') {
+      R.boot('game');
+      R.emit('boot');
+      return;
+    }
     // 先探测 assets/ 下哪些可选素材真的存在（分组目录优先），再启动引擎，
     // 这样 Preload 里加载的都是确定存在的单地址，不会因 404 回退失败。
     R.prepareAssets(function () {
