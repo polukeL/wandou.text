@@ -58,6 +58,7 @@
     obstacles:  'assets/obstacles/',    // 建筑障碍
     avatars:    'assets/avatars/',      // 头像 / 头像框
     icons:      'assets/icons/',        // 升级卡图标
+    audio:      'assets/audio/',        // 音效（mp3 / ogg）
     ui:         'assets/ui/'            // UI 组件 / 加载界面
   };
 
@@ -120,6 +121,12 @@
       return [R.ASSET_DIRS.icons + bare + '.png',
               R.ASSET_DIRS.icons + id + '.png',
               'assets/' + id + '.png'];
+    }
+    // 音效（v0.8.2）：aud_bgm_main → assets/audio/bgm_main.mp3 / .ogg
+    if (id.indexOf('aud_') === 0) {
+      var name = id.slice(4);
+      return [R.ASSET_DIRS.audio + name + '.mp3',
+              R.ASSET_DIRS.audio + name + '.ogg'];
     }
     var g = R.ASSET_GROUP[id];
     if (g) return [R.ASSET_DIRS[g] + id + '.png', 'assets/' + id + '.png'];
@@ -205,6 +212,9 @@
     push('loadbar_bg'); push('loadbar_fill');
     // 加载界面 / 主界面大图（v0.8.1）：boot_bg / boot_logo / title_bg / title_plate
     (R.SCREEN_BG_IDS || []).forEach(function (id) { push(id); });
+    // 音效（v0.8.2）：aud_<name>，探测 assets/audio/<name>.mp3 / .ogg
+    ['bgm_main', 'shoot', 'hit', 'kill', 'hurt', 'pickup', 'level', 'coin', 'heal', 'reward', 'boss']
+      .forEach(function (k) { push('aud_' + k); });
     // 升级卡图标：占位图 key 是 icon_<name>，真实图放 assets/icons/<name>.png
     (R.UI_ICONS || []).forEach(function (n) { push('icon_' + n); });
     // 精英怪变体（v0.8.0）：<art>_elite
@@ -250,15 +260,21 @@
       else miss.push(id);
     });
     // 正式贴图 → <id>_real，create() 阶段再由 applyRealArt 覆盖 <id>
+    // （aud_ 前缀是音效，由上面的 load.audio 处理，不能当贴图加载）
     hit.forEach(function (id) {
+      if (id.indexOf('aud_') === 0) return;
       if (!scene.textures.exists(id + '_real')) scene.load.image(id + '_real', R.RESOLVED[id]);
     });
     if (miss.length) console.info('[豌豆镇] 使用占位图（未找到素材）: ' + miss.join(', '));
 
     // 音效（可选，找不到就静音，不影响游戏）
+    // v0.8.2 修复：不再盲加载 mp3/ogg 双候选——audio 目录为空时，404 返回的 HTML
+    // 会被部分浏览器（微信 X5 等）当作音频长时间解码，load 队列挂起、
+    // 读条 100% 也进不了主界面。现在音频也走启动前探测，只有真实存在才进队列。
     var audio = ['bgm_main', 'shoot', 'hit', 'kill', 'hurt', 'pickup', 'level', 'coin', 'heal', 'reward', 'boss'];
     audio.forEach(function (k) {
-      scene.load.audio('a_' + k, ['assets/audio/' + k + '.mp3', 'assets/audio/' + k + '.ogg']);
+      var url = R.RESOLVED['aud_' + k];
+      if (url) scene.load.audio('a_' + k, url);
     });
     var failedArt = [];
     scene.load.on('loaderror', function (file) {
