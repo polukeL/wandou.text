@@ -5,12 +5,17 @@
 ```
 assets/
 ├── characters/   主角皮肤     skin_default / skin_night / skin_ember / skin_frost / skin_royal / skin_angel
+│                              （精英怪变体在 enemies/：<怪>_elite.png，如 slime_elite.png）
 ├── enemies/      小怪与 Boss   slime / bat / charger / spitter / skull / skull_gold / golem / king_pea
+│                              精英变体   slime_elite / bat_elite / charger_elite / spitter_elite / skull_elite
 ├── fx/           特效         bullet_pea / bullet_seed / blob / blob_soft / pet_ball
 ├── pickups/      拾取物       pickup_gem / pickup_heart / pickup_coin / pickup_shield / pickup_maxhp / chest
 ├── world/        场景         portal / portal_swirl / tile / tile_ch1 / tile_ch2 / tile_ch3
 ├── props/        道具         pet_nest / pet_egg / pet_buddy / altar_bless / altar_curse / fountain
-├── obstacles/    建筑障碍     ob_house / ob_rock / ob_tree / ob_crate / ob_bush / ob_well / ob_tomb / ob_pillar
+├── obstacles/    建筑障碍     ob_house / ob_rock / …（通用）
+│   ├── ch1/      第一章专用建筑（同 id，分章出图时放这里）
+│   ├── ch2/      第二章专用建筑
+│   └── ch3/      第三章专用建筑
 ├── avatars/      头像与框     av_* / fr_*
 ├── icons/        升级卡图标   pea / shot / sword / heart …（可选，需代码接入）
 ├── ui/           界面         title_bg / title_plate / btn_* / card / panel / boot_logo / boot_bg / loading_bar_*
@@ -26,6 +31,15 @@ assets/
 ## 加载顺序（v0.7.6）
 
 游戏启动时会先对每条候选路径发一次 HEAD 探测，命中就用命中的地址加载：
+
+建筑分章探测（v0.8.0）：
+
+```
+assets/obstacles/ch1/ob_house.png   ← 分章子目录（推荐）
+assets/obstacles/ob_house_ch1.png   ← 平铺命名
+assets/obstacles/ob_house.png       ← 通用
+assets/ob_house.png                 ← 旧路径兼容
+```
 
 ```
 assets/characters/skin_default.png   ← 首选（分组目录）

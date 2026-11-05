@@ -12,21 +12,43 @@
 
   Preload.prototype.preload = function () {
     var self = this;
-    // 进度条
     var w = this.scale.width, h = this.scale.height;
-    this.add.rectangle(w / 2, h / 2, w, h, 0x2b1d2b);
-    var barBg = this.add.rectangle(w / 2, h / 2, 380, 26, 0x4a3a4a).setStrokeStyle(4, 0xfff6e2);
-    var bar = this.add.rectangle(w / 2 - 184, h / 2, 0, 18, 0x6cc24a).setOrigin(0, 0.5);
-    var txt = this.add.text(w / 2, h / 2 - 44, R.DATA.TEXT.title, {
-      fontFamily: '"Baloo 2","Fredoka",system-ui,sans-serif', fontSize: '34px', color: '#fff6e2'
-    }).setOrigin(0.5);
+
+    /* ---------- 加载界面（v0.8.1：按效果图布局） ----------
+     * 层级（depth 由小到大）：铺底纯色 < 背景插画 < 进度条 < 文字
+     * 注意：所有 draw 调用都必须在 load.start() 之前完成，
+     *       因为 load.start() 会在同一帧立刻开始传输，draw 会被跳过。 */
+    // 1) 纯色铺底：等背景图加载期间不至于露出空白
+    this.add.rectangle(w / 2, h / 2, w, h, 0x2b1d2b).setDepth(-3);
+
+    // 2) 背景插画：与 HTML 启动屏同一张 assets/ui/boot_bg.png（浏览器已缓存，秒开）
+    //    队列第一项是它，剩余资源加载期间一直可见。
+    var bgKey = 'boot_bg_img';
+    if (!this.textures.exists(bgKey)) {
+      var bgUrl = (R.RESOLVED && R.RESOLVED['boot_bg']) || 'assets/ui/boot_bg.png';
+      this.load.image(bgKey, bgUrl);
+      this.load.once('filecomplete-image-' + bgKey, function () { self._addScreenBg(bgKey); });
+    }
+
+    // 3) 读条（368×40，位于屏幕 81.5% 高度处）
+    var barW = 368, barH = 40, barY = h * 0.815;
+    var barBg = this.add.rectangle(w / 2, barY, barW + 12, barH + 8, 0x1d1428)
+      .setStrokeStyle(4, 0xfff6e2).setDepth(1);
+    var bar = this.add.rectangle(w / 2 - barW / 2, barY, 0, barH - 8, 0x6cc24a)
+      .setOrigin(0, 0.5).setDepth(2);
+    var pctText = this.add.text(w / 2, barY, '0%', {
+      fontFamily: '"Baloo 2","Fredoka",system-ui,sans-serif', fontSize: '22px', fontStyle: 'bold', color: '#ffffff',
+      stroke: '#2b1d2b', strokeThickness: 3
+    }).setOrigin(0.5).setDepth(3);
+    var txt = this.add.text(w / 2, barY + 42, '资源加载中...', {
+      fontFamily: '"Baloo 2","Fredoka",system-ui,sans-serif', fontSize: '22px', color: '#fff6e2'
+    }).setOrigin(0.5).setDepth(3);
 
     /* 读条图片自定义（放图即生效，无需改代码）：
-     *   assets/ui/loading_bar_bg.png   读条底图（显示为 368×18 区域）
+     *   assets/ui/loading_bar_bg.png   读条底图
      *   assets/ui/loading_bar_fill.png 读条填充图（按进度从左往右裁切显示）
-     * 存在时替换默认矩形读条；图片按自然尺寸适配到 368×18。
-     * 候选路径已在启动前由 R.prepareAssets 探测，这里只加载确定存在的地址。
-     */
+     * 存在时替换默认矩形读条；图片按读条区域等比适配。
+     * 候选路径已在启动前由 R.prepareAssets 探测，这里只加载确定存在的地址。 */
     var uiRes = R.RESOLVED || {};
     if (uiRes['loadbar_bg']) this.load.image('loadbar_bg', uiRes['loadbar_bg']);
     if (uiRes['loadbar_fill']) this.load.image('loadbar_fill', uiRes['loadbar_fill']);
@@ -39,13 +61,13 @@
 
     function tryShowImages() {
       if (!imgs.bg && texUsable('loadbar_bg')) {
-        imgs.bg = self.add.image(w / 2 - 184, h / 2, 'loadbar_bg')
-          .setOrigin(0, 0.5).setDisplaySize(368, 18).setDepth(1);
+        imgs.bg = self.add.image(w / 2 - barW / 2, barY, 'loadbar_bg')
+          .setOrigin(0, 0.5).setDisplaySize(barW + 12, barH + 8).setDepth(1);
         barBg.setVisible(false);
       }
       if (!imgs.fill && texUsable('loadbar_fill')) {
-        imgs.fill = self.add.image(w / 2 - 184, h / 2, 'loadbar_fill')
-          .setOrigin(0, 0.5).setDisplaySize(368, 18).setDepth(2);
+        imgs.fill = self.add.image(w / 2 - barW / 2, barY, 'loadbar_fill')
+          .setOrigin(0, 0.5).setDisplaySize(barW - 8, barH - 8).setDepth(2);
         imgs.fill.setCrop(0, 0, 0, imgs.fill.height);
         bar.setVisible(false);
       }
@@ -54,11 +76,12 @@
       if (key === 'loadbar_bg' || key === 'loadbar_fill') tryShowImages();
     });
     this.load.on('progress', function (v) {
+      pctText.setText(Math.round(v * 100) + '%');
       if (imgs.fill) {
         // 按进度裁切填充图（只显示左侧 v 比例）
         imgs.fill.setCrop(0, 0, imgs.fill.width * v, imgs.fill.height);
       } else {
-        bar.width = 368 * v;
+        bar.width = (barW - 8) * v;
       }
     });
 
@@ -68,6 +91,8 @@
 
   Preload.prototype.create = function () {
     var self = this;
+    // 背景插画兜底：加载事件没赶上也在这补（此阶段纹理一定已就绪）
+    if (!this._bgShown) this._addScreenBg('boot_bg_img');
     R.Art.generate(this);
     R.Art.generateUI(this);      // UI 占位图
     R.Art.generateObstacles(this); // 建筑/障碍物占位图（ob_*）
@@ -77,6 +102,23 @@
     R.applyRealArt(this);
     // 等待 localStorage 自定义皮肤纹理写入完成再进标题页
     R.UISkin.waitReady(function () { self.scene.start('Title'); });
+  };
+
+  /* 铺一张全屏背景图（cover 方式：等比放大到铺满，超出部分裁掉，不拉伸变形） */
+  Preload.prototype._addScreenBg = function (key) {
+    if (this._bgShown || !this.textures.exists(key)) return null;
+    var w = this.scale.width, h = this.scale.height;
+    var img = this.add.image(w / 2, h / 2, key).setDepth(-2);
+    var src = this.textures.get(key).getSourceImage();
+    if (src && src.width && src.height) {
+      img.setScale(Math.max(w / src.width, h / src.height));
+      // 避免高图超出屏幕时把读条/文字挤出可见区以外的观感问题：居中即可
+      img.setPosition(w / 2, h / 2);
+    } else {
+      img.setDisplaySize(w, h);
+    }
+    this._bgShown = true;
+    return img;
   };
 
   R.SCENES.push(Preload);

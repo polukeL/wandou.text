@@ -40,9 +40,9 @@
     this.renderPreview(null);
 
     // 分栏按钮（预览栏下方，三栏）
-    this.buildTab(W * 0.20, 292, '头像', 'avatar');
-    this.buildTab(W * 0.50, 292, '头像框', 'frame');
-    this.buildTab(W * 0.80, 292, '皮肤', 'skin');
+    this.buildTab(W * 0.20, 348, '头像', 'avatar');
+    this.buildTab(W * 0.50, 348, '头像框', 'frame');
+    this.buildTab(W * 0.80, 348, '皮肤', 'skin');
 
     this.grid = this.add.container(0, 0);
     this.renderGrid();
@@ -103,6 +103,26 @@
     return c;
   }
 
+  /* 皮肤大图全身预览（v0.8.0）：圆角展示台 + 底座光圈，展示完整立绘 */
+  function skinShowcase(scene, x, y, w, h, def) {
+    var key = scene.textures.exists(def.id) ? def.id : 'player';
+    var c = scene.add.container(x, y);
+    var g = scene.add.graphics();
+    // 展示台底板
+    g.fillStyle(0x1d1428, 0.9); g.fillRoundedRect(-w / 2 - 8, -h / 2 - 8, w + 16, h + 16, 24);
+    g.lineStyle(4, 0xf9a825, 0.75); g.strokeRoundedRect(-w / 2 - 8, -h / 2 - 8, w + 16, h + 16, 24);
+    // 底部光圈（脚下聚光效果）
+    g.fillStyle(0x53d9ff, 0.16); g.fillEllipse(0, h / 2 - 14, w * 0.72, 26);
+    g.fillStyle(0x53d9ff, 0.28); g.fillEllipse(0, h / 2 - 14, w * 0.5, 16);
+    c.add(g);
+    // 全身立绘：按高撑满（贴图通常 96x96，全身占满画面）
+    var img = scene.add.image(0, 0, key);
+    var sc = Math.min(w / img.width, h / img.height);
+    img.setScale(sc * 0.96);
+    c.add(img);
+    return c;
+  }
+
   /* ---------------- 预览栏 ----------------
    * def 为 null 时显示提示文案；有 def 时：
    *   左：大预览（头像+框叠加）  中：名称 + 状态/价格
@@ -112,14 +132,14 @@
     var self = this, W = this.scale.width;
     this.preview.removeAll(true);
     this.sel = def ? def.id : null;
-    var cy = 190;
+    var cy = 190;   // 面板中心（面板总高 260：y 60~320）
 
-    // 面板底
+    // 面板底（v0.8.0 加高以容纳全身立绘）
     var panel = this.add.graphics();
-    panel.fillStyle(0x000000, 0.28); panel.fillRoundedRect(W / 2 - 300, cy - 78, 600, 156, 20);
-    panel.fillStyle(0x241a2e, 1);    panel.fillRoundedRect(W / 2 - 294, cy - 72, 588, 144, 16);
+    panel.fillStyle(0x000000, 0.28); panel.fillRoundedRect(W / 2 - 300, cy - 130, 600, 260, 20);
+    panel.fillStyle(0x241a2e, 1);    panel.fillRoundedRect(W / 2 - 294, cy - 124, 588, 248, 16);
     panel.lineStyle(3, 0xf9a825, 0.6);
-    panel.strokeRoundedRect(W / 2 - 294, cy - 72, 588, 144, 16);
+    panel.strokeRoundedRect(W / 2 - 294, cy - 124, 588, 248, 16);
     this.preview.add(panel);
 
     if (!def) {
@@ -137,40 +157,40 @@
     var equipped = isEquipped(def);
     var locked = unlockLocked(def);
 
-    // 大预览
+    // 大预览（v0.8.0：皮肤改为全身立绘大图 260×220）
     if (kind === 'skin') {
-      this.preview.add(skinPreview(this, W / 2 - 208, cy, 108, def));
+      this.preview.add(skinShowcase(this, W / 2 - 195, cy, 236, 222, def));
     } else {
       // 头像 + 框叠加（预览框时用当前头像，预览头像时用当前框）
       var prevAvatar = kind === 'avatar' ? def.id : R.Meta.avatar;
       var prevFrame = kind === 'avatar' ? R.Meta.frame : def.id;
-      this.preview.add(R.Avatar.add(this, W / 2 - 208, cy, 104, { avatar: prevAvatar, frame: prevFrame }));
+      this.preview.add(R.Avatar.add(this, W / 2 - 195, cy, 120, { avatar: prevAvatar, frame: prevFrame }));
     }
 
     // 名称 + 状态文字
     var status = equipped ? '· 使用中' : (owned ? '· 已购买' : (locked ? '· 未解锁' : ''));
     var kindName = kind === 'skin' ? '皮肤' : (kind === 'avatar' ? '头像' : '头像框');
-    this.preview.add(this.add.text(W / 2 - 130, cy - 40, def.name, {
+    this.preview.add(this.add.text(W / 2 - 62, cy - 62, def.name, {
       fontFamily: FONT, fontSize: '30px', fontStyle: 'bold', color: '#fff6e2',
       stroke: '#2b1d2b', strokeThickness: 6
     }).setOrigin(0, 0.5));
-    this.preview.add(this.add.text(W / 2 - 130, cy - 2,
+    this.preview.add(this.add.text(W / 2 - 62, cy - 26,
       kindName + '  ' + status, {
       fontFamily: FONT, fontSize: '19px', color: owned ? '#8fe08a' : '#ffe9a8'
     }).setOrigin(0, 0.5));
     // 一行说明（皮肤用 desc，其他用 kind 提示）
     var sub = def.desc || '';
     if (locked) sub = def.desc || ('通关 ' + ((R.DATA.SKINS_UNLOCK_CLEARS) || 1) + ' 次解锁');
-    this.preview.add(this.add.text(W / 2 - 130, cy + 30, sub, {
+    this.preview.add(this.add.text(W / 2 - 62, cy + 8, sub, {
       fontFamily: FONT, fontSize: '15px', color: locked ? '#ffb0a0' : '#b9a8cc',
-      wordWrap: { width: 250 }, lineSpacing: 2
+      wordWrap: { width: 180 }, lineSpacing: 2
     }).setOrigin(0, 0.5));
 
     // 预览右侧操作按钮
     var st = btnStyle(def, owned, equipped);
     this._previewAction = { def: def, owned: owned, equipped: equipped, locked: locked, st: st };
 
-    var px = W / 2 + 150, btn = this.add.container(px, cy);
+    var px = W / 2 + 150, btn = this.add.container(px, cy + 86);
     var bg2 = this.add.graphics();
     bg2.fillStyle(0x2b1d2b, 1); bg2.fillRoundedRect(-105, -30, 210, 60, 30);
     bg2.fillStyle(st.col2, 1);  bg2.fillRoundedRect(-99, -24, 198, 48, 24);
@@ -242,7 +262,7 @@
     var list = this.tab === 'avatar' ? R.DATA.AVATARS
              : (this.tab === 'frame' ? R.DATA.FRAMES : R.DATA.SKINS);
     var cols = 2, cellW = (W - 72) / cols, cellH = 200;
-    var startY = 436;
+    var startY = 470;
 
     list.forEach(function (def, i) {
       var cx = 36 + cellW * (i % cols) + cellW / 2;

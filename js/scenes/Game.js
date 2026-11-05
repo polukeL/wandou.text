@@ -197,10 +197,19 @@
     var pad = cfg.edgePadding;
     var placed = 0, guard = 0;
 
+    // 尺寸缩放（v0.8.0）：全局 scale × 单项 scale
+    var globalObScale = (cfg.scale !== undefined ? cfg.scale : 1);
+
     while (placed < n && guard < 400) {
       guard++;
       var t = pool[Math.floor(Math.random() * pool.length)];
-      var hw = t.w / 2, hh = t.h / 2;
+      // 章节风格贴图（v0.8.0）：优先 ob_xxx_ch<章>，没有则用通用 ob_xxx
+      var obArt = t.art;
+      var chKey = t.art + '_ch' + this.run.chapter;
+      if (this.textures.exists(chKey)) obArt = chKey;
+      var bw = t.w * globalObScale * (t.scale !== undefined ? t.scale : 1);
+      var bh = t.h * globalObScale * (t.scale !== undefined ? t.scale : 1);
+      var hw = bw / 2, hh = bh / 2;
       var x = Phaser.Math.Between(pad + hw, ARENA - pad - hw);
       var y = Phaser.Math.Between(pad + hh, ARENA - pad - hh);
 
@@ -216,18 +225,18 @@
       }
       if (!ok) continue;
 
-      var img = this.obstacles.create(x, y, t.art);
-      img.setDisplaySize(t.w, t.h);
+      var img = this.obstacles.create(x, y, obArt);
+      img.setDisplaySize(bw, bh);
       img.setDepth(6);                        // 在地面之上、角色之下
-      img.body.setSize(t.w, t.h);
-      img.body.setOffset((img.width - t.w) / 2, (img.height - t.h) / 2);
+      img.body.setSize(bw, bh);
+      img.body.setOffset((img.width - bw) / 2, (img.height - bh) / 2);
       // 静态体：让 physics 用世界坐标刷新碰撞盒
       img.body.updateFromGameObject();
       img.refreshBody && img.refreshBody();
 
       img.obId = t.id;
       img.setShadow && img.setShadow(0, 0, 0, 0);
-      this.obstacleList.push({ x: x, y: y, r: r, w: t.w, h: t.h, sprite: img });
+      this.obstacleList.push({ x: x, y: y, r: r, w: bw, h: bh, sprite: img });
       this.obstacleSprites.push(img);
       placed++;
     }
@@ -962,7 +971,12 @@
     var pos = opts.pos || this.ringPosition();
 
     var elite = !!opts.elite;
-    var img = this.spawnImage(this.enemies, def.art, pos.x, pos.y);
+    // 精英怪独立造型（v0.8.0）：优先用 <art>_elite 贴图（占位或 assets/enemies/ 下的正式图），
+    // 没有该变体则回退普通贴图 + 金色染色（旧行为）。
+    var artKey = def.art;
+    var eliteVariant = elite && this.textures.exists(def.art + '_elite');
+    if (eliteVariant) artKey = def.art + '_elite';
+    var img = this.spawnImage(this.enemies, artKey, pos.x, pos.y);
     if (!img) return null;   // 敌人数量达到上限（池满），本帧不再刷
     img.setDepth(16);
     img.body.setAllowGravity(false);
@@ -987,6 +1001,7 @@
     img.size = def.size * scaleMul;
     img.hitR = def.size * 0.45 * scaleMul;
     img.elite = elite;
+    img.eliteVariant = eliteVariant;
     img.aiState = 'idle';
     img.aiTimer = 0;
     img.hurtT = 0;
@@ -994,9 +1009,10 @@
     img.stun = 0;
     img.flip = false;
     img.uid = Game._uid = (Game._uid || 0) + 1;
-    img.setTint(elite ? 0xffd75e : 0xffffff);
+    img.setTint(eliteVariant ? 0xffffff : (elite ? 0xffd75e : 0xffffff));
 
-    var baseScale = (def.size / 64) * scaleMul;
+    // baseScale 按贴图实际宽度折算（精英变体画布更大，保持碰撞语义一致并稍作放大）
+    var baseScale = (def.size / (img.width || 64)) * scaleMul * (eliteVariant ? 1.08 : 1);
     img.baseScale = baseScale;
     img.setScale(baseScale);
 
@@ -1318,7 +1334,7 @@
       // 受击闪白
       if (e.hurtT > 0) {
         e.hurtT -= dt;
-        if (e.hurtT <= 0) e.setTint(e.elite ? 0xffd75e : 0xffffff);
+        if (e.hurtT <= 0) e.setTint(e.elite && e.eliteVariant ? 0xffffff : (e.elite ? 0xffd75e : 0xffffff));
       }
 
       // Boss 走专用 AI

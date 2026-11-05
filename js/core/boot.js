@@ -71,6 +71,8 @@
     slime: 'enemies', bat: 'enemies', charger: 'enemies', spitter: 'enemies',
     skull: 'enemies', skull_gold: 'enemies', golem: 'enemies', golem_hard: 'enemies',
     king_pea: 'enemies',
+    slime_elite: 'enemies', bat_elite: 'enemies', charger_elite: 'enemies',
+    spitter_elite: 'enemies', skull_elite: 'enemies',
     // 特效
     bullet_pea: 'fx', bullet_seed: 'fx', blob: 'fx', blob_soft: 'fx', pet_ball: 'fx',
     // 拾取物
@@ -90,12 +92,29 @@
     av_pea: 'avatars', av_slime: 'avatars', av_bat: 'avatars',
     av_skull: 'avatars', av_king: 'avatars', av_golem: 'avatars',
     fr_basic: 'avatars', fr_leaf: 'avatars', fr_bone: 'avatars',
-    fr_gold: 'avatars', fr_rainbow: 'avatars'
+    fr_gold: 'avatars', fr_rainbow: 'avatars',
+    // 加载界面 / 主界面大图（v0.8.1）：全部放 assets/ui/
+    boot_bg: 'ui', boot_logo: 'ui', title_bg: 'ui', title_plate: 'ui',
+    loadbar_bg: 'ui', loadbar_fill: 'ui'
   };
 
   /* 某 id 的全部候选路径（首选分组 → 根目录兼容）
    * 特例：icon_xxx 属于升级卡图标，文件名去掉 icon_ 前缀放在 icons/ 下 */
   R.assetPaths = function (id) {
+    // 建筑章节组合（v0.8.0）：ob_house_ch1 →
+    //   ① assets/obstacles/ch1/ob_house.png     （章节子目录，推荐）
+    //   ② assets/obstacles/ob_house_ch1.png     （平铺命名）
+    //   ③ assets/obstacles/ob_house.png         （通用建筑，不分章）
+    //   ④ assets/ob_house.png                   （旧路径兼容）
+    var m = /^(ob_.+)_ch(\d+)$/.exec(id);
+    if (m) {
+      return [
+        R.ASSET_DIRS.obstacles + 'ch' + m[2] + '/' + m[1] + '.png',
+        R.ASSET_DIRS.obstacles + id + '.png',
+        R.ASSET_DIRS.obstacles + m[1] + '.png',
+        'assets/' + id + '.png'
+      ];
+    }
     if (id.indexOf('icon_') === 0) {
       var bare = id.slice(5);
       return [R.ASSET_DIRS.icons + bare + '.png',
@@ -141,6 +160,22 @@
     next();
   };
 
+  /* 精英怪变体清单（v0.8.0）：这些怪出精英时会换 <n>_elite 造型 */
+  R.ELITE_ART = ['slime', 'bat', 'charger', 'spitter', 'skull'];
+
+  /* 建筑贴图清单（v0.8.0）：与 D.OBSTACLES.types 的 art 字段保持一致，
+   * 每个建筑可为每章单独出图：ob_xxx_ch1.png / ob_xxx_ch2.png / ob_xxx_ch3.png */
+  R.OBSTACLE_ARTS = ['ob_house', 'ob_rock', 'ob_tree', 'ob_crate',
+                     'ob_bush', 'ob_well', 'ob_tomb', 'ob_pillar'];
+
+  /* 加载界面 / 主界面大图（v0.8.1）：均为 assets/ui/ 下的整张图，全屏铺满使用。
+   *   boot_bg     启动屏 + 加载场景背景插画  建议 720×1280（竖屏全屏）
+   *   boot_logo   启动屏正中标题 logo        建议宽 720 以内、透明底 PNG
+   *   title_bg    主界面背景                 建议 720×1280
+   *   title_plate 主界面标题牌底板           建议 500×140
+   * 这四张不参与占位图替换，也不按 displaySize 缩放为小尺寸，单独处理。 */
+  R.SCREEN_BG_IDS = ['boot_bg', 'boot_logo', 'title_bg', 'title_plate'];
+
   /* ---------------------------------------------------------
    * 预解析资源路径（v0.7.6）
    * ---------------------------------------------------------
@@ -168,8 +203,18 @@
     (R.UISkin_IDS || []).forEach(function (id) { push(id); });
     // 加载界面读条
     push('loadbar_bg'); push('loadbar_fill');
+    // 加载界面 / 主界面大图（v0.8.1）：boot_bg / boot_logo / title_bg / title_plate
+    (R.SCREEN_BG_IDS || []).forEach(function (id) { push(id); });
     // 升级卡图标：占位图 key 是 icon_<name>，真实图放 assets/icons/<name>.png
     (R.UI_ICONS || []).forEach(function (n) { push('icon_' + n); });
+    // 精英怪变体（v0.8.0）：<art>_elite
+    (R.ELITE_ART || []).forEach(function (n) { push(n + '_elite'); });
+    // 建筑章节组合（v0.8.0）：ob_xxx_ch<章节id>
+    (R.DATA.CHAPTERS || []).forEach(function (ch) {
+      (R.OBSTACLE_ARTS || []).forEach(function (a) { push(a + '_ch' + ch.id); });
+    });
+    // 加载界面 / 主界面大图（v0.8.1）
+    (R.SCREEN_BG_IDS || []).forEach(function (id) { push(id); });
     return ids;
   };
 
@@ -239,8 +284,17 @@
     (R.realArtKeys() || []).forEach(function (id) {
       if (id === 'tile' || id.indexOf('tile_ch') === 0) defs.push({ id: id });
     });
+    // 精英怪变体（v0.8.0）：<art>_elite
+    (R.ELITE_ART || []).forEach(function (n) { defs.push({ id: n + '_elite' }); });
+    // 建筑章节组合（v0.8.0）：ob_xxx_ch<章节id>
+    (R.DATA.CHAPTERS || []).forEach(function (ch) {
+      (R.OBSTACLE_ARTS || []).forEach(function (a) { defs.push({ id: a + '_ch' + ch.id }); });
+    });
     var applied = [];
     defs.forEach(function (a) {
+      // 加载界面 / 主界面大图（v0.8.1）：单独加载到 <id>_real，
+      // 由各自的场景直接读取，不参与占位图覆盖（避免误删原 key）。
+      if ((R.SCREEN_BG_IDS || []).indexOf(a.id) >= 0) return;
       var realKey = a.id + '_real';
       if (scene.textures.exists(realKey)) {
         var src = scene.textures.get(realKey).getSourceImage();

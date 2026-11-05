@@ -31,27 +31,46 @@
   /* 启动兜底界面（引擎未就绪时可见） */
   #boot {
     position: fixed; inset: 0; z-index: 10;
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
-    color: var(--cream); text-align: center; padding: 24px;
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: flex-start; padding-top: 14vh;
+    color: var(--cream); text-align: center; padding-left: 24px; padding-right: 24px;
     background: radial-gradient(circle at 50% 30%, #4a3350 0%, #2b1d2b 70%);
     transition: opacity .3s ease;
+  }
+  /* 底部读条（v0.8.1，与效果图一致）：HTML 阶段用 CSS 动画模拟，Phaser 接管后显示真进度
+   * 宽度与游戏内读条对齐：368/720 ≈ 51.1% 画面宽；
+   * 游戏画面宽 = min(100vw, 56.25vh)，故读条宽 = min(51.1vw, 28.75vh) */
+  #boot .loadbar {
+    position: absolute; left: 50%; top: 81.5%; transform: translateX(-50%);
+    width: min(51.1vw, 28.75vh); height: auto; aspect-ratio: 368 / 40;
+    background: #1d1428; border: 3px solid #fff6e2; border-radius: 8px;
+    overflow: hidden;
+  }
+  #boot .loadbar i {
+    position: absolute; inset: 0; width: 40%;
+    background: linear-gradient(90deg, #6cc24a, #a8e063);
+    border-radius: 4px;
+    animation: bootbar 1.6s ease-in-out infinite;
+  }
+  @keyframes bootbar {
+    0% { width: 8%; } 55% { width: 72%; } 100% { width: 96%; }
+  }
+  #boot .loadtip {
+    position: absolute; left: 50%; top: calc(81.5% + 9vh); transform: translateX(-50%);
+    font-size: min(2.8vh, 18px); color: #fff6e2; opacity: .85;
   }
   #boot.hide { opacity: 0; pointer-events: none; }
   #boot img#boot-bg {
     position: absolute; inset: 0; width: 100%; height: 100%;
     object-fit: cover; z-index: -1;
   }
-  #boot img#boot-logo { max-width: 70%; max-height: 220px; margin-bottom: 6px; }
+  #boot img#boot-logo { width: min(51.1vw, 28.75vh); height: auto; margin-bottom: 6px; }
   #boot .logo {
     font-size: 34px; font-weight: 800; letter-spacing: 2px;
     color: #ffe14d; text-shadow: 0 4px 0 #2b1d2b, 0 8px 18px rgba(0,0,0,.4);
   }
   #boot .sub { margin-top: 8px; font-size: 14px; opacity: .7; letter-spacing: 3px; }
-  #boot .spin {
-    margin-top: 28px; width: 42px; height: 42px; border-radius: 50%;
-    border: 5px solid rgba(255,246,226,.25); border-top-color: #6cc24a;
-    animation: spin .8s linear infinite;
-  }
+  #boot .spin { display: none; }
   @keyframes spin { to { transform: rotate(360deg); } }
   .boot-error { color: #ffd7d2; line-height: 1.7; }
   .boot-error h2 { color: #ffe14d; }
@@ -74,6 +93,8 @@
   <img id="boot-logo" src="assets/ui/boot_logo.png" alt="豌豆镇大冒险" style="display:none" data-fallback="assets/boot_logo.png">
   <div class="logo" id="boot-logo-text">豌豆镇大冒险</div>
   <div class="sub" id="boot-logo-sub">PEA TOWN ROGUE</div>
+  <div class="loadbar"><i></i></div>
+  <div class="loadtip">资源加载中...</div>
   <div class="spin" id="boot-spin"></div>
 </div>
 <script>

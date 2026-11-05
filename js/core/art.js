@@ -217,6 +217,169 @@
         for (var i = 0; i < 4; i++) gr.fillRect(30 + i * 6, 56, 2.6, 9);
       });
 
+      // ---------- 精英变体（v0.8.0）----------
+      // 精英怪不再用普通怪放大 + 金色染色，而是独立造型：
+      // 金色王冠 + 深色尖刺 + 凶相眉眼，体型在 Game.js 里按 D.SIZE.elite 放大。
+      // 替换正式美术时直接提供 <id>_elite.png（如 assets/enemies/slime_elite.png）。
+
+      // 精英果冻怪：三叠冠 + 尖刺果冻
+      g(scene, 'slime_elite', 72, 72, function (gr) {
+        gr.fillStyle(0x000000, 0.18); gr.fillEllipse(36, 64, 46, 11);
+        // 尖刺
+        gr.fillStyle(C.outline, 1);
+        gr.fillTriangle(12, 44, 6, 26, 22, 38);
+        gr.fillTriangle(60, 44, 66, 26, 50, 38);
+        gr.fillStyle(0x7a3fb8, 1);
+        gr.fillTriangle(14, 42, 10, 30, 22, 38);
+        gr.fillTriangle(58, 42, 62, 30, 50, 38);
+        // 主体（更深的紫 + 毒绿高光）
+        gr.fillStyle(C.outline, 1); gr.fillEllipse(36, 44, 58, 46);
+        gr.fillStyle(0x6a2f9e, 1);  gr.fillEllipse(36, 43, 50, 39);
+        gr.fillStyle(0x9bff5e, 0.4); gr.fillEllipse(26, 30, 15, 9);
+        // 怒眉眼
+        gr.fillStyle(C.ink, 1);
+        gr.fillTriangle(20, 38, 32, 42, 21, 45);
+        gr.fillTriangle(52, 38, 40, 42, 51, 45);
+        gr.fillStyle(0xffe14d, 1); gr.fillCircle(27, 46, 5.5); gr.fillCircle(45, 46, 5.5);
+        gr.fillStyle(C.ink, 1);    gr.fillCircle(28, 47, 2.8); gr.fillCircle(44, 47, 2.8);
+        // 咧嘴獠牙
+        gr.fillStyle(C.ink, 1); gr.fillRoundedRect(26, 55, 20, 8, 3);
+        gr.fillStyle(C.white, 1);
+        gr.fillTriangle(28, 56, 31, 56, 29, 61);
+        gr.fillTriangle(41, 56, 44, 56, 43, 61);
+        // 王冠
+        gr.fillStyle(C.outline, 1);
+        gr.fillTriangle(20, 20, 22, 2, 28, 14); gr.fillTriangle(28, 14, 36, -2, 44, 14);
+        gr.fillTriangle(44, 14, 50, 2, 52, 20);
+        gr.fillStyle(0xffd23f, 1);
+        gr.fillTriangle(22, 18, 24, 6, 29, 15); gr.fillTriangle(30, 14, 36, 2, 42, 14);
+        gr.fillTriangle(43, 15, 48, 6, 50, 18);
+        gr.fillStyle(0xff5ea8, 1); gr.fillCircle(36, 12, 2.6);
+      });
+
+      // 精英蝙蝠：血翼 + 双叉冠
+      g(scene, 'bat_elite', 72, 72, function (gr) {
+        gr.fillStyle(C.outline, 1);
+        gr.fillTriangle(36, 34, 0, 14, 10, 52);
+        gr.fillTriangle(36, 34, 72, 14, 62, 52);
+        gr.fillStyle(0x8a1f3d, 1);
+        gr.fillTriangle(36, 34, 4, 18, 13, 48);
+        gr.fillTriangle(36, 34, 68, 18, 59, 48);
+        gr.fillStyle(0xff5ea8, 0.5);
+        gr.fillTriangle(36, 34, 14, 26, 20, 42);
+        gr.fillTriangle(36, 34, 58, 26, 52, 42);
+        blob(gr, 36, 36, 17, 0xb03a6b, 5);
+        // 耳 + 怒眉
+        gr.fillStyle(C.outline, 1);
+        gr.fillTriangle(24, 24, 28, 6, 36, 22);
+        gr.fillTriangle(48, 24, 44, 6, 36, 22);
+        gr.fillStyle(C.ink, 1);
+        gr.fillTriangle(24, 34, 34, 38, 25, 41);
+        gr.fillTriangle(48, 34, 38, 38, 47, 41);
+        gr.fillStyle(0xffe14d, 1); gr.fillCircle(30, 40, 5); gr.fillCircle(42, 40, 5);
+        gr.fillStyle(C.ink, 1);    gr.fillCircle(31, 41, 2.5); gr.fillCircle(41, 41, 2.5);
+        gr.fillStyle(C.white, 1);
+        gr.fillTriangle(30, 48, 34, 48, 32, 54);
+        gr.fillTriangle(38, 48, 42, 48, 40, 54);
+        // 王冠
+        gr.fillStyle(0xffd23f, 1);
+        gr.fillTriangle(28, 10, 32, 0, 36, 9); gr.fillTriangle(36, 9, 40, 0, 44, 10);
+        gr.fillStyle(0x6ce0ff, 1); gr.fillCircle(36, 8, 2.2);
+      });
+
+      // 精英冲锋猪：黑鬃甲 + 断角
+      g(scene, 'charger_elite', 88, 88, function (gr) {
+        gr.fillStyle(0x000000, 0.18); gr.fillEllipse(44, 78, 52, 12);
+        blob(gr, 44, 48, 28, 0xb3542e, 5);
+        // 背部鬃甲尖刺
+        gr.fillStyle(C.outline, 1);
+        gr.fillTriangle(20, 30, 16, 12, 32, 22);
+        gr.fillTriangle(32, 22, 34, 6, 48, 20);
+        gr.fillTriangle(48, 20, 60, 10, 62, 28);
+        gr.fillStyle(0x3a2b3f, 1);
+        gr.fillTriangle(22, 28, 19, 16, 31, 24);
+        gr.fillTriangle(33, 21, 35, 10, 47, 22);
+        gr.fillTriangle(48, 21, 58, 14, 59, 27);
+        // 断裂的左角
+        gr.fillStyle(0xf3e3c3, 1);
+        gr.fillTriangle(18, 34, 8, 22, 22, 26);
+        // 鼻子 + 喷气孔
+        gr.fillStyle(C.outline, 1); gr.fillEllipse(44, 62, 30, 20);
+        gr.fillStyle(0xd97a8a, 1);  gr.fillEllipse(44, 61, 23, 14);
+        gr.fillStyle(C.ink, 1); gr.fillCircle(38, 61, 3); gr.fillCircle(50, 61, 3);
+        // 怒眼
+        gr.fillStyle(C.ink, 1);
+        gr.fillTriangle(26, 42, 38, 46, 27, 49);
+        gr.fillTriangle(62, 42, 50, 46, 61, 49);
+        gr.fillStyle(0xffe14d, 1); gr.fillCircle(33, 50, 5.5); gr.fillCircle(55, 50, 5.5);
+        gr.fillStyle(C.ink, 1);    gr.fillCircle(34, 51, 2.8); gr.fillCircle(54, 51, 2.8);
+        // 獠牙（更长）
+        gr.fillStyle(C.white, 1);
+        gr.fillTriangle(28, 70, 33, 70, 28, 82);
+        gr.fillTriangle(55, 70, 60, 70, 60, 82);
+        // 王冠
+        gr.fillStyle(0xffd23f, 1);
+        gr.fillTriangle(36, 14, 40, 2, 44, 14); gr.fillTriangle(44, 14, 50, 4, 52, 18);
+        gr.fillStyle(0xff5ea8, 1); gr.fillCircle(43, 12, 2.4);
+      });
+
+      // 精英吐籽怪：双管炮口 + 荆棘
+      g(scene, 'spitter_elite', 80, 80, function (gr) {
+        gr.fillStyle(0x000000, 0.18); gr.fillEllipse(40, 72, 46, 11);
+        // 荆棘
+        gr.fillStyle(C.outline, 1);
+        gr.fillTriangle(14, 40, 4, 30, 16, 28);
+        gr.fillTriangle(20, 18, 16, 6, 30, 14);
+        gr.fillTriangle(52, 16, 58, 4, 62, 20);
+        gr.fillStyle(0x5e1f36, 1);
+        gr.fillTriangle(16, 38, 8, 31, 16, 30);
+        gr.fillTriangle(22, 17, 19, 9, 29, 15);
+        gr.fillTriangle(52, 15, 57, 8, 58, 18);
+        blob(gr, 40, 42, 26, 0x8c2f4a, 5);
+        // 双管炮口
+        gr.fillStyle(C.outline, 1); gr.fillEllipse(62, 38, 24, 26);
+        gr.fillStyle(0x2b1420, 1);  gr.fillEllipse(62, 38, 16, 18);
+        gr.fillStyle(0xffb300, 0.8); gr.fillCircle(62, 38, 4);
+        // 怒眼
+        gr.fillStyle(C.ink, 1);
+        gr.fillTriangle(22, 32, 34, 36, 23, 39);
+        gr.fillTriangle(46, 32, 34, 36, 45, 39);
+        gr.fillStyle(0xffe14d, 1); gr.fillCircle(28, 40, 6); gr.fillCircle(44, 40, 6);
+        gr.fillStyle(C.ink, 1);    gr.fillCircle(29, 41, 3); gr.fillCircle(43, 41, 3);
+        // 斑点 → 换成裂纹
+        gr.fillStyle(0x2b1420, 0.7);
+        gr.fillRect(20, 52, 12, 3); gr.fillRect(34, 58, 14, 3); gr.fillRect(26, 24, 3, 10);
+        // 王冠
+        gr.fillStyle(0xffd23f, 1);
+        gr.fillTriangle(32, 14, 36, 2, 40, 14); gr.fillTriangle(40, 14, 46, 4, 48, 18);
+        gr.fillStyle(0x6ce0ff, 1); gr.fillCircle(39, 12, 2.4);
+      });
+
+      // 精英骷髅：熔岩金骨 + 焰冠
+      g(scene, 'skull_elite', 72, 72, function (gr) {
+        gr.fillStyle(0x000000, 0.15); gr.fillEllipse(36, 66, 40, 10);
+        gr.fillStyle(0xffb300, 0.3); gr.fillCircle(36, 38, 34);
+        blob(gr, 36, 36, 22, 0xffc94d, 5);
+        gr.fillStyle(0xffc94d, 1); gr.fillRoundedRect(26, 52, 20, 13, 5);
+        // 裂纹
+        gr.fillStyle(0x8a5a00, 1);
+        gr.fillRect(30, 20, 3, 12); gr.fillRect(42, 24, 3, 9);
+        // 眼窝 + 双色火
+        gr.fillStyle(C.ink, 1); gr.fillCircle(29, 34, 8); gr.fillCircle(43, 34, 8);
+        gr.fillStyle(0xff4d4d, 1); gr.fillCircle(30, 35, 4.2); gr.fillCircle(42, 35, 4.2);
+        gr.fillStyle(0xffe14d, 1); gr.fillCircle(30, 34, 2); gr.fillCircle(42, 34, 2);
+        gr.fillStyle(C.ink, 1);
+        for (var i = 0; i < 4; i++) gr.fillRect(28 + i * 5, 54, 2.4, 9);
+        // 焰冠（代替王冠，随轮廓起伏）
+        gr.fillStyle(0xff6a2b, 1);
+        gr.fillTriangle(18, 20, 22, 2, 28, 16);
+        gr.fillTriangle(28, 16, 36, -2, 44, 16);
+        gr.fillTriangle(44, 16, 50, 2, 54, 20);
+        gr.fillStyle(0xffd23f, 0.9);
+        gr.fillTriangle(22, 16, 25, 6, 29, 15);
+        gr.fillTriangle(30, 14, 36, 3, 42, 14);
+      });
+
       // ---------- 石头人 Boss ----------
       g(scene, 'golem', 176, 176, function (gr) {
         gr.fillStyle(0x000000, 0.18); gr.fillEllipse(88, 156, 120, 26);

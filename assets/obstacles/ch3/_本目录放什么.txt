@@ -1,0 +1,27 @@
+﻿建筑 · 第3章风格
+========================================
+
+目录：assets/obstacles/ch3/
+适用章节风格：豌豆王座（暗紫王庭风）
+
+文件名必须等于下面的 id（全小写，扩展名 .png）：
+
+  ob_house.png
+  ob_rock.png
+  ob_tree.png
+  ob_crate.png
+  ob_bush.png
+  ob_well.png
+  ob_tomb.png
+  ob_pillar.png
+
+说明（v0.8.0）
+----------------------------------------
+· 本章专用建筑图，进本章地图时自动使用
+· 找不到本章图时会回退到 assets/obstacles/ 下的通用 ob_xxx.png
+· 也可以不放本目录，改用平铺命名：assets/obstacles/ob_house_ch3.png
+· 探测优先级：
+    ch3/ob_house.png > ob_house_ch3.png > ob_house.png > assets/ob_house.png
+· 尺寸参考：与美术资源清单「建筑/场景障碍」章节一致（w×h 见清单）
+
+这张说明文件不影响游戏，可以删除。

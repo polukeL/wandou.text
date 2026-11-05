@@ -6,7 +6,7 @@
   'use strict';
   var D = (R.DATA = {});
 
-  D.VERSION = '0.7.9';
+  D.VERSION = '0.8.1';
 
   /* ---------------------------------------------------------
    * 更新日志（改版本号 + 更新简介就改这里）
@@ -20,6 +20,25 @@
    * 加新版本：在数组最前面 push 一条，并把 D.VERSION 改成对应版本号。
    * ------------------------------------------------------- */
   D.CHANGELOG = [
+    {
+      version: '0.8.1', date: '2024-11-25', title: '加载界面按效果图重做 · 读条移到底部', tag: 'new',
+      items: [
+        '加载界面换新：assets/ui/boot_bg.png 全屏插画背景，启动屏与引擎加载阶段共用一张图，过渡无跳变',
+        '读条移到画面底部 81.5% 处（368×40），新增百分比数字，文字改为「资源加载中...」',
+        '读条图片自定义：assets/ui/loading_bar_bg.png / loading_bar_fill.png 放图即生效，填充图按进度裁切',
+        '修复：加载/主界面大图（boot_bg、title_bg 等）未按 assets/ui/ 分组路径探测的问题'
+      ]
+    },
+    {
+      version: '0.8.0', date: '2024-11-24', title: '精英怪独立造型 · 建筑分章风格 · 商店全身预览', tag: 'new',
+      items: [
+        '精英怪不再用普通怪放大染色：新增 5 款独立造型（王冠 + 尖刺 + 凶相），支持 assets/enemies/<怪>_elite.png 替换',
+        '建筑支持每章不同美术风格：assets/obstacles/ch1~3/ 分章目录，命名探测 ob_xxx > ob_xxx_ch<章>',
+        '建筑尺寸可调：D.OBSTACLES.scale 全局缩放 + 每种建筑单独 scale',
+        '商店皮肤预览改为全身立绘大图（236×222 展示台），面板同步加高',
+        'assets/obstacles/ 下新增 ch1/ch2/ch3 三个分章子目录与说明文件'
+      ]
+    },
     {
       version: '0.7.9', date: '2024-11-23', title: '启动失败不再白屏', tag: 'fix',
       items: [
@@ -245,6 +264,8 @@
     skull:   { art: 'skull',  name: '骷髅兵', hp: 44,  speed: 92,  size: 34, dmg: 10, xp: 5,  gold: 2, kind: 'chaser' }
   };
 
+  /* 精英怪（v0.8.0 起使用独立造型 <art>_elite，不再是普通怪放大染色）
+   * size 仍控制体型倍率；size: 0 则按贴图原始尺寸（正式美术建议 1~1.2） */
   D.ELITE = { hp: 7, size: 1.45, dmg: 16, xp: 6, gold: 6 };   // dmg 为点数（同 D.DMG.elite）
 
   /* ---------------------------------------------------------
@@ -258,7 +279,7 @@
   D.SIZE = {
     player: 1.0,      // 主角　（0.8 偏小 / 1.2 偏大）
     enemy: 2.0,       // 全部小怪统一缩放倍数
-    elite: 2.45,      // 精英怪额外放大倍数（在原基础上再乘）
+    elite: 2.0,      // 精英怪额外放大倍数（在原基础上再乘）
     boss: 2.0         // Boss 统一缩放倍数
   };
 
@@ -400,15 +421,19 @@
     /* 出生点周围的"净空区"半径（刷怪/传送门不会生成在这之内） */
     spawnClearRadius: 70,
 
+    /* 尺寸缩放（v0.8.0）：实际尺寸 = w/h × 全局scale × 单项scale。
+     * 全局 scale 一处调全部建筑；单项 scale 微调个别建筑。1 = 原始大小。 */
+    scale: 1,
+
     types: [
-      { id: 'house',    art: 'ob_house',    w: 150, h: 130, weight: 3 },
-      { id: 'rock',     art: 'ob_rock',     w: 110, h: 110, weight: 3 },
-      { id: 'tree',     art: 'ob_tree',     w: 84,  h: 96,  weight: 4 },
-      { id: 'crate',    art: 'ob_crate',    w: 76,  h: 76,  weight: 3 },
-      { id: 'bush',     art: 'ob_bush',     w: 92,  h: 80,  weight: 3 },
-      { id: 'well',     art: 'ob_well',     w: 96,  h: 96,  weight: 2 },
-      { id: 'tomb',     art: 'ob_tomb',     w: 72,  h: 96,  weight: 2 },
-      { id: 'pillar',   art: 'ob_pillar',   w: 76,  h: 118, weight: 2 }
+      { id: 'house',    art: 'ob_house',    w: 150, h: 130, weight: 3, scale: 1 },
+      { id: 'rock',     art: 'ob_rock',     w: 110, h: 110, weight: 3, scale: 1 },
+      { id: 'tree',     art: 'ob_tree',     w: 84,  h: 96,  weight: 4, scale: 1 },
+      { id: 'crate',    art: 'ob_crate',    w: 76,  h: 76,  weight: 3, scale: 1 },
+      { id: 'bush',     art: 'ob_bush',     w: 92,  h: 80,  weight: 3, scale: 1 },
+      { id: 'well',     art: 'ob_well',     w: 96,  h: 96,  weight: 2, scale: 1 },
+      { id: 'tomb',     art: 'ob_tomb',     w: 72,  h: 96,  weight: 2, scale: 1 },
+      { id: 'pillar',   art: 'ob_pillar',   w: 76,  h: 118, weight: 2, scale: 1 }
     ]
   };
 
