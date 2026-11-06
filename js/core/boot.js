@@ -38,6 +38,13 @@
     };
     R.game = new Phaser.Game(config);
 
+    /* 主城布局定稿文件（v0.8.12）：assets/ui/city-layout.json
+     * 编辑模式调好布局后「下载布局」放到该路径，即可全设备/线上统一生效，
+     * 不再依赖浏览器 localStorage（清缓存也不会丢）。 */
+    setTimeout(function () {
+      try { if (R.CityLayout && R.CityLayout.fetchServer) R.CityLayout.fetchServer(); } catch (e) {}
+    }, 0);
+
     /* 看门狗（v0.8.3）：部分环境在加载完成后偶发不触发场景切换
      * （渲染循环暂停/事件丢失/场景创建异常等），导致黑屏或卡在加载界面。
      * 12 秒后检查：只要没进入标题页且加载队列已完成，就自动恢复

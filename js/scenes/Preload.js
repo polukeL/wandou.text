@@ -133,8 +133,22 @@
     // 网络快时也不会一闪而过看不见 logo（v0.8.3）。
     var MIN_SHOW = 1200;
     R.UISkin.waitReady(function () {
-      var left = MIN_SHOW - (Date.now() - (self._bootStart || 0));
-      self.time.delayedCall(Math.max(0, left), function () { self.scene.start('Title'); });
+      var started = false;
+      var go = function () {
+        if (started) return;
+        started = true;
+        var left = MIN_SHOW - (Date.now() - (self._bootStart || 0));
+        self.time.delayedCall(Math.max(0, left), function () { self.scene.start('Title'); });
+      };
+      /* 先把主城布局定稿文件 assets/ui/city-layout.json 读完再进标题页，
+       * 避免 Title 用默认坐标创建后又被文件覆盖而跳动（v0.8.12）。
+       * 网络异常时最多等 1.5 秒兜底。 */
+      if (R.CityLayout && R.CityLayout.fetchServer) {
+        R.CityLayout.fetchServer(go);
+        self.time.delayedCall(1500, function () {
+          if (!R.CityLayout._serverLoaded) { R.CityLayout._serverLoaded = true; go(); }
+        });
+      } else { go(); }
     });
   };
 

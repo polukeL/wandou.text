@@ -49,24 +49,67 @@
     foot:        { x: 360, y: 1048 }   // 版本/记录小字
   };
 
+  /* 布局来源优先级（从低到高）：
+   *   1. CITY_DEFAULTS        —— 代码内置默认值（保底）
+   *   2. assets/ui/city-layout.json —— 项目文件，全设备/线上统一生效（定稿用）
+   *   3. localStorage 草稿     —— 本机 ?uiedit=1 拖动产生的临时覆盖
+   * 定稿流程：编辑模式调好 → 点「下载布局」得到 city-layout.json
+   *        → 放进 assets/ui/ → 提交上线 → 点「重置默认」清掉本机草稿即可。 */
+  var LAYOUT_FILE = 'assets/ui/city-layout.json';
   R.CityLayout = {
     _draft: null,
+    _server: null,
+    _serverLoaded: false,
+    _src: 'default',
+    /* 启动时拉取项目里的布局文件（加时间戳避免 CDN 缓存） */
+    fetchServer: function (cb) {
+      var self = this;
+      if (this._serverLoaded) { if (cb) cb(); return; }
+      var url = LAYOUT_FILE + '?t=' + Date.now();
+      var done = function (j) {
+        self._server = (j && typeof j === 'object') ? j : {};
+        self._serverLoaded = true;
+        self._src = Object.keys(self._server).length ? 'file' : 'default';
+        if (cb) cb();
+      };
+      try {
+        fetch(url, { cache: 'no-store' })
+          .then(function (r) { return r.ok ? r.json() : null; })
+          .then(done)
+          .catch(function () { done(null); });
+      } catch (e) { done(null); }
+    },
     load: function () {
       if (this._draft) return this._draft;
       try { this._draft = JSON.parse(localStorage.getItem(CITY_LS) || '{}'); }
       catch (e) { this._draft = {}; }
       return this._draft;
     },
-    /* 生效位置 = 草稿 > 默认 */
+    /* 生效位置 = 本机草稿 > 项目文件 > 代码默认 */
     pos: function (key) {
-      var d = this.load()[key] || {};
+      var d = this.load()[key];
+      if (d && d.x !== undefined) return { x: d.x, y: d.y };
+      var sv = (this._server || {})[key];
+      if (sv && sv.x !== undefined) return { x: sv.x, y: sv.y };
       var def = CITY_DEFAULTS[key] || { x: 0, y: 0 };
-      return { x: d.x !== undefined ? d.x : def.x, y: d.y !== undefined ? d.y : def.y };
+      return { x: def.x, y: def.y };
     },
     scale: function (key) {
-      var d = this.load()[key] || {};
+      var d = this.load()[key];
+      if (d && d.scale !== undefined) return d.scale;
+      var sv = (this._server || {})[key];
+      if (sv && sv.scale !== undefined) return sv.scale;
       var def = CITY_DEFAULTS[key] || {};
-      return d.scale !== undefined ? d.scale : (def.scale || 1);
+      return def.scale || 1;
+    },
+    current: function () {
+      var self = this, out = {};
+      Object.keys(CITY_DEFAULTS).forEach(function (k) {
+        var p = self.pos(k);
+        out[k] = { x: Math.round(p.x), y: Math.round(p.y) };
+        if ((CITY_DEFAULTS[k] || {}).scale) out[k].scale = self.scale(k);
+      });
+      return out;
     },
     set: function (key, x, y) {
       var d = this.load();
@@ -74,24 +117,28 @@
       d[key].x = Math.round(x); d[key].y = Math.round(y);
       try { localStorage.setItem(CITY_LS, JSON.stringify(d)); } catch (e) {}
     },
-    export: function () {
-      var d = this.load(), out = {};
-      Object.keys(CITY_DEFAULTS).forEach(function (k) {
-        var v = d[k] || {};
-        var def = CITY_DEFAULTS[k];
-        out[k] = {
-          x: v.x !== undefined ? v.x : def.x,
-          y: v.y !== undefined ? v.y : def.y
-        };
-        if (def.scale) out[k].scale = v.scale !== undefined ? v.scale : def.scale;
-      });
-      return JSON.stringify(out, null, 1);
+    export: function () { return JSON.stringify(this.current(), null, 1); },
+    /* 下载定稿文件：放进 assets/ui/city-layout.json 即全设备生效 */
+    download: function () {
+      var txt = this.export();
+      try {
+        var blob = new Blob([txt], { type: 'application/json' });
+        var a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'city-layout.json';
+        document.body.appendChild(a); a.click();
+        setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+        return true;
+      } catch (e) { return false; }
     },
     reset: function () {
       this._draft = null;
       try { localStorage.removeItem(CITY_LS); } catch (e) {}
     },
-    isEdited: function () { return Object.keys(this.load()).length > 0; }
+    isEdited: function () { return Object.keys(this.load()).length > 0; },
+    source: function () {
+      return this.isEdited() ? 'local' : this._src;
+    }
   };
 
   function Title() { Phaser.Scene.call(this, { key: 'Title' }); }
@@ -362,8 +409,9 @@
     var g = this.add.graphics().setDepth(90);
     g.fillStyle(0x000000, 0.55); g.fillRect(0, 0, W, 44);
     g.fillStyle(0x000000, 0.55); g.fillRect(0, H - 40, W, 40);
-    this.add.text(W / 2, 22, 'UI 编辑模式：拖动组件调整位置（松手自动保存）', {
-      fontFamily: 'system-ui,sans-serif', fontSize: '19px', color: '#ffe14d'
+    var srcName = { local: '本机草稿', file: '项目文件 city-layout.json', 'default': '代码默认' }[R.CityLayout.source()] || '默认';
+    this.add.text(W / 2, 22, 'UI 编辑模式（来源：' + srcName + '）拖动即保存', {
+      fontFamily: 'system-ui,sans-serif', fontSize: '18px', color: '#ffe14d'
     }).setOrigin(0.5).setDepth(91);
 
     items.forEach(function (it) {
@@ -406,7 +454,14 @@
       c.on('pointerdown', fn);
       return c;
     }
-    toolBtn(90, '导出坐标', function () {
+    /* 关键：下载 city-layout.json —— 放进 assets/ui/ 提交后全设备生效 */
+    toolBtn(80, '下载布局', function () {
+      var ok = R.CityLayout.download();
+      self.toastLocal(ok
+        ? '已下载 city-layout.json → 放进 assets/ui/ 后提交上线'
+        : '下载失败，请用「导出坐标」复制内容');
+    });
+    toolBtn(260, '导出坐标', function () {
       var json = R.CityLayout.export();
       console.log('[豌豆镇][主城布局]\n' + json);
       var t = self.add.text(W / 2, H / 2, json, {
@@ -416,11 +471,11 @@
       self.toastLocal('坐标已复制到弹窗，也可在控制台查看（点文字关闭）');
       t.on('pointerdown', function () { t.destroy(); });
     });
-    toolBtn(360, '重置默认', function () {
+    toolBtn(440, '重置默认', function () {
       R.CityLayout.reset();
       location.replace(location.pathname + '?uiedit=1');
     });
-    toolBtn(630, '完成退出', function () {
+    toolBtn(620, '完成退出', function () {
       location.replace(location.pathname);
     });
   };
