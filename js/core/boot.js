@@ -37,6 +37,24 @@
       scene: R.SCENES || []
     };
     R.game = new Phaser.Game(config);
+
+    /* 看门狗（v0.8.3）：部分手机内核在加载完成后偶发不触发场景切换
+     * （渲染循环暂停/事件丢失等），10 秒后仍在 Preload 且队列已完成
+     * 就强制进入标题页，避免卡在加载界面。 */
+    setTimeout(function () {
+      try {
+        var g = R.game;
+        if (!g || !g.scene) return;
+        var title = g.scene.getScene('Title');
+        var pre = g.scene.getScene('Preload');
+        if (title && title.scene.isActive()) return;
+        if (pre && pre.scene.isActive() && pre.load.progress >= 1) {
+          console.warn('[豌豆镇] 看门狗：加载已完成但未进入主界面，强制切换');
+          pre.scene.start('Title');
+        }
+      } catch (e) { /* 静默 */ }
+    }, 10000);
+
     return R.game;
   };
 

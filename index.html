@@ -22,7 +22,9 @@
   }
   #game {
     position: fixed; inset: 0;
-    display: flex; align-items: center; justify-content: center;
+    /* 不用 flex 居中：Phaser 的 CENTER_BOTH 已通过 margin 居中 canvas，
+       两套居中叠加会把画面推到右侧（v0.8.3 修复） */
+    display: block;
     touch-action: none;
     background: radial-gradient(circle at 50% 30%, #4a3350 0%, #2b1d2b 70%);
   }
