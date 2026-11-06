@@ -11,33 +11,42 @@
   var C = R.COLORS;
 
   /* =====================================================
-   * 主城布局表（v0.8.6）
+   * 主城布局表（v0.8.11）：所有 UI 组件均独立可编辑
    * 坐标为 720×1280 设计稿基准，key 见 createCity。
    * 手动调整方式（推荐）：地址栏加 ?uiedit=1 进入编辑模式，
    *   直接拖动任意组件 → 松手自动保存（localStorage），
    *   点「导出」把 JSON 发给开发/粘贴回 CITY_DEFAULTS 即可定稿。
    * 也可以直接改下面 CITY_DEFAULTS 的数字。
    * ===================================================== */
-  var CITY_LS = 'pearogue.citylayout.v2';   // v2：场景底换新图，旧草稿作废
+  var CITY_LS = 'pearogue.citylayout.v3';   // v3：全部组件独立可编辑，旧草稿作废
   var CITY_DEFAULTS = {
-    avatar:      { x: 57,  y: 50   },  // 头像（对准信息底圆形开口中心）
-    coin:        { x: 441, y: 46   },  // 金币组（底框+图标+数字整体）
-    snd:         { x: 668, y: 46   },  // 声音开关
-    bld_lab:     { x: 184, y: 273  },  // 科研所（按参考图模板匹配）
-    bld_build_a: { x: 559, y: 230  },  // 建设中·右上（按参考图模板匹配）
-    bld_shop:    { x: 534, y: 519  },  // 资源商店（按参考图模板匹配）
-    bld_build_b: { x: 178, y: 607, scale: 1.1 },  // 建设中·左中（参考图匹配，放大 1.1）
-    bottom:      { x: 360, y: 1173 },  // 底部栏底板
-    btn_notice:  { x: 140, y: 1178 },  // 公告按钮
-    btn_battle:  { x: 360, y: 1170 },  // 出战按钮
-    btn_rank:    { x: 580, y: 1181 }   // 排行榜按钮
-  };
-  /* 名字标签相对建筑中心的偏移（不单独拖动，跟随建筑） */
-  var LABEL_OFFSET = {
-    bld_lab:     { x: -5,  y: 104 },
-    bld_build_a: { x: 3,   y: 10  },
-    bld_shop:    { x: 0,   y: 61  },
-    bld_build_b: { x: 4,   y: -62 }
+    /* 顶部信息区 */
+    info:        { x: 158, y: 60  },   // 玩家信息底条
+    avatar:      { x: 57,  y: 50  },   // 头像（对准信息底圆形开口中心）
+    name:        { x: 112, y: 42  },   // 昵称文字
+    lv:          { x: 112, y: 80  },   // 等级文字
+    exp:         { x: 214, y: 80  },   // 经验条（底+填充）
+    /* 金币（底框/图标/数字各自独立） */
+    coin_bg:     { x: 441, y: 46  },
+    coin_icon:   { x: 388, y: 45  },
+    coin_text:   { x: 468, y: 45  },
+    snd:         { x: 668, y: 46  },   // 声音开关
+    /* 建筑（不含标签，标签独立） */
+    bld_lab:     { x: 184, y: 273  },
+    bld_build_a: { x: 559, y: 230  },
+    bld_shop:    { x: 534, y: 519  },
+    bld_build_b: { x: 178, y: 607, scale: 1.1 },
+    /* 建筑名字标签（独立组件，默认=建筑位+原偏移） */
+    label_lab:     { x: 179, y: 377 },
+    label_build_a: { x: 562, y: 240 },
+    label_shop:    { x: 534, y: 580 },
+    label_build_b: { x: 182, y: 545 },
+    /* 底部 */
+    bottom:      { x: 360, y: 1173 },
+    btn_notice:  { x: 140, y: 1178 },
+    btn_battle:  { x: 360, y: 1170 },
+    btn_rank:    { x: 580, y: 1181 },
+    foot:        { x: 360, y: 1048 }   // 版本/记录小字
   };
 
   R.CityLayout = {
@@ -140,8 +149,9 @@
     // ---------- 背景：小镇场景图 ----------
     this.add.image(W / 2, H / 2, 'title2_bg').setDisplaySize(W, H).setDepth(-10);
 
-    // ---------- 顶部：玩家信息底（固定贴图，不参与拖动） ----------
-    this.add.image(158, 60, 'title2_info').setDepth(5);
+    // ---------- 顶部：玩家信息区（全部组件独立可编辑） ----------
+    var infoP = L.pos('info');
+    var infoImg = this.add.image(infoP.x, infoP.y, 'title2_info').setDepth(5);
 
     // 头像（效果图素材，点击进商店更换）
     var avP = L.pos('avatar');
@@ -153,9 +163,10 @@
       self.scene.start('Shop', { tab: 'avatar' });
     });
 
-    // 昵称 + 等级 + 经验条（随信息底固定）
+    // 昵称 / 等级 / 经验条（各自独立，可分别拖动）
+    var nameP = L.pos('name');
     var nameDef = R.Meta.avatarDef();
-    this.add.text(112, 42, (nameDef && nameDef.name) || '豌豆仔', {
+    var nameText = this.add.text(nameP.x, nameP.y, (nameDef && nameDef.name) || '豌豆仔', {
       fontFamily: '"Baloo 2","Fredoka",system-ui,sans-serif', fontSize: '21px', fontStyle: 'bold',
       color: '#ffffff', stroke: '#33224a', strokeThickness: 4
     }).setOrigin(0, 0.5).setDepth(6);
@@ -165,26 +176,29 @@
     var lv = 1 + best;
     var expPct = best > 0 ? (best % 15) / 15 : 0;
     if (best >= 15) expPct = 1;
-    this.add.text(112, 80, 'Lv.' + lv, {
+    var lvP = L.pos('lv');
+    var lvText = this.add.text(lvP.x, lvP.y, 'Lv.' + lv, {
       fontFamily: '"Baloo 2","Fredoka",system-ui,sans-serif', fontSize: '16px', fontStyle: 'bold',
       color: '#ffe14d', stroke: '#33224a', strokeThickness: 3
     }).setOrigin(0, 0.5).setDepth(6);
-    this.add.image(214, 80, 'title2_expbg').setDisplaySize(94, 17).setDepth(6);
+    var expP = L.pos('exp');
+    var expG = this.add.container(expP.x, expP.y).setDepth(6);
+    expG.add(this.add.image(0, 0, 'title2_expbg').setDisplaySize(94, 17));
     if (expPct > 0) {
-      this.add.image(214 - 47 + 2, 80, 'title2_expfill').setOrigin(0, 0.5)
-        .setDisplaySize(90 * expPct, 12).setDepth(7);
+      expG.add(this.add.image(-45, 0, 'title2_expfill').setOrigin(0, 0.5)
+        .setDisplaySize(90 * expPct, 12).setDepth(7));
     }
 
-    // ---------- 顶部：金币组（底框 + 图标 + 数字，整体拖动） ----------
-    var coinP = L.pos('coin');
-    var coinG = this.add.container(coinP.x, coinP.y).setDepth(5);
-    coinG.add(this.add.image(0, 0, 'title2_coinbg'));
-    coinG.add(this.add.image(-53, -1, 'title2_coin'));
-    var coinText = this.add.text(27, -1, String(R.Meta.gold | 0), {
+    // ---------- 顶部：金币（底框/图标/数字三个独立组件，分别拖动） ----------
+    var coinBgP = L.pos('coin_bg');
+    var coinBgImg = this.add.image(coinBgP.x, coinBgP.y, 'title2_coinbg').setDepth(5);
+    var coinIcP = L.pos('coin_icon');
+    var coinIconImg = this.add.image(coinIcP.x, coinIcP.y, 'title2_coin').setDepth(6);
+    var coinTxP = L.pos('coin_text');
+    var coinText = this.add.text(coinTxP.x, coinTxP.y, String(R.Meta.gold | 0), {
       fontFamily: '"Baloo 2","Fredoka",system-ui,sans-serif', fontSize: '24px', fontStyle: 'bold',
       color: '#ffdd55', stroke: '#5a3a10', strokeThickness: 4
-    }).setOrigin(0.5);
-    coinG.add(coinText);
+    }).setOrigin(0.5).setDepth(6);
 
     // ---------- 顶部：声音开关 ----------
     var sndP = L.pos('snd');
@@ -200,29 +214,13 @@
       R.Sfx.play('click');
     });
 
-    // ---------- 中部：建筑（建筑+名字标签合为一个容器，整体拖动） ----------
-    function building(key, artKey, label, iconKey, onTap, labelOff) {
+    // ---------- 中部：建筑（仅建筑本体，标签为独立组件另行创建） ----------
+    function building(key, artKey, onTap) {
       var p = L.pos(key);
       var sc = L.scale(key);
       var c = self.add.container(p.x, p.y).setDepth(3);
       var img = self.add.image(0, 0, artKey).setScale(sc);
       c.add(img);
-      var lb = self.add.container(labelOff.x, labelOff.y).setDepth(4);
-      lb.add(self.add.image(0, 0, 'title2_label'));
-      var txt = self.add.text(0, 0, label, {
-        fontFamily: '"Baloo 2","Fredoka",system-ui,sans-serif', fontSize: '23px', fontStyle: 'bold',
-        color: '#ffffff', stroke: '#22335c', strokeThickness: 4
-      }).setOrigin(0.5);
-      var hasIcon = iconKey && self.textures.exists(iconKey);
-      if (hasIcon) {
-        var gap = 8, icHalf = 17, tw = txt.width;
-        var total = icHalf * 2 + gap + tw;
-        var left = -total / 2;
-        lb.add(self.add.image(left + icHalf, 0, iconKey));
-        txt.setX(left + icHalf * 2 + gap + tw / 2);
-      }
-      lb.add(txt);
-      c.add(lb);
       if (onTap) {
         self.hit(c, img.displayWidth + 20, img.displayHeight + 20);
         c.on('pointerdown', function () {
@@ -244,12 +242,36 @@
       self.toast('该建筑建设中，敬请期待');
     }
 
-    var bld_lab     = building('bld_lab', 'title2_bld_lab', '科研所', 'title2_ic_lab',
-      function () { self.scene.start('Lab'); }, LABEL_OFFSET.bld_lab);
-    var bld_build_a = building('bld_build_a', 'title2_bld_build', '建设中', null, underConstruction, LABEL_OFFSET.bld_build_a);
-    var bld_shop    = building('bld_shop', 'title2_bld_shop', '资源商店', 'title2_ic_shop',
-      function () { self.scene.start('Shop'); }, LABEL_OFFSET.bld_shop);
-    var bld_build_b = building('bld_build_b', 'title2_bld_build', '建设中', null, underConstruction, LABEL_OFFSET.bld_build_b);
+    var bld_lab     = building('bld_lab', 'title2_bld_lab', function () { self.scene.start('Lab'); });
+    var bld_build_a = building('bld_build_a', 'title2_bld_build', underConstruction);
+    var bld_shop    = building('bld_shop', 'title2_bld_shop', function () { self.scene.start('Shop'); });
+    var bld_build_b = building('bld_build_b', 'title2_bld_build', underConstruction);
+
+    // 名字标签（独立组件：底框 + 可选图标 + 文字，组合居中）
+    function label(key, text, iconKey) {
+      var p = L.pos(key);
+      var lb = self.add.container(p.x, p.y).setDepth(4);
+      lb.add(self.add.image(0, 0, 'title2_label'));
+      var txt = self.add.text(0, 0, text, {
+        fontFamily: '"Baloo 2","Fredoka",system-ui,sans-serif', fontSize: '23px', fontStyle: 'bold',
+        color: '#ffffff', stroke: '#22335c', strokeThickness: 4
+      }).setOrigin(0.5);
+      var hasIcon = iconKey && self.textures.exists(iconKey);
+      if (hasIcon) {
+        var gap = 8, icHalf = 17, tw = txt.width;
+        var total = icHalf * 2 + gap + tw;
+        var left = -total / 2;
+        lb.add(self.add.image(left + icHalf, 0, iconKey));
+        txt.setX(left + icHalf * 2 + gap + tw / 2);
+      }
+      lb.add(txt);
+      return lb;
+    }
+
+    var label_lab     = label('label_lab', '科研所', 'title2_ic_lab');
+    var label_build_a = label('label_build_a', '建设中', null);
+    var label_shop    = label('label_shop', '资源商店', 'title2_ic_shop');
+    var label_build_b = label('label_build_b', '建设中', null);
 
     // ---------- 底部：功能栏（底板与三按钮均为独立组件，可分别拖动） ----------
     var botP = L.pos('bottom');
@@ -289,7 +311,8 @@
     // 底栏上方小字：版本 + 最远记录
     var foot = 'v' + D.VERSION;
     if (best > 0) foot += '  ·  最远到达：第 ' + best + ' 关';
-    this.add.text(W / 2, H - 232, foot, {
+    var footP = L.pos('foot');
+    var footText = this.add.text(footP.x, footP.y, foot, {
       fontFamily: 'system-ui,sans-serif', fontSize: '17px', color: '#ffffff'
     }).setOrigin(0.5).setAlpha(0.8).setShadow(0, 2, '#00000088', 3).setDepth(5);
 
@@ -306,11 +329,26 @@
 
     // ---------- 拖拽编辑模式（?uiedit=1） ----------
     if (edit) this.enableCityEdit([
-      { key: 'avatar', obj: av, w: 110, h: 110 }, { key: 'coin', obj: coinG, w: 224, h: 76 }, { key: 'snd', obj: snd },
+      { key: 'info', obj: infoImg, w: 316, h: 99 },
+      { key: 'avatar', obj: av, w: 110, h: 110 },
+      { key: 'name', obj: nameText, w: 140, h: 30 },
+      { key: 'lv', obj: lvText, w: 70, h: 28 },
+      { key: 'exp', obj: expG, w: 110, h: 30 },
+      { key: 'coin_bg', obj: coinBgImg, w: 224, h: 76 },
+      { key: 'coin_icon', obj: coinIconImg, w: 60, h: 60 },
+      { key: 'coin_text', obj: coinText, w: 90, h: 40 },
+      { key: 'snd', obj: snd },
       { key: 'bld_lab', obj: bld_lab }, { key: 'bld_build_a', obj: bld_build_a },
       { key: 'bld_shop', obj: bld_shop }, { key: 'bld_build_b', obj: bld_build_b },
-      { key: 'bottom', obj: bottomImg }, { key: 'btn_notice', obj: btnNotice },
-      { key: 'btn_battle', obj: btnBattle }, { key: 'btn_rank', obj: btnRank }
+      { key: 'label_lab', obj: label_lab, w: 190, h: 48 },
+      { key: 'label_build_a', obj: label_build_a, w: 190, h: 48 },
+      { key: 'label_shop', obj: label_shop, w: 190, h: 48 },
+      { key: 'label_build_b', obj: label_build_b, w: 190, h: 48 },
+      { key: 'bottom', obj: bottomImg },
+      { key: 'btn_notice', obj: btnNotice },
+      { key: 'btn_battle', obj: btnBattle },
+      { key: 'btn_rank', obj: btnRank },
+      { key: 'foot', obj: footText, w: 260, h: 26 }
     ]);
   };
 
