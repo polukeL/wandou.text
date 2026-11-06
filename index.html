@@ -103,8 +103,8 @@
   <!-- .stage：模拟 Phaser FIT 布局（720:1280 竖屏比例居中），
        让 HTML 启动屏与游戏画布区域完全一致，切换时无大小跳变 -->
   <div class="stage">
-    <img id="boot-bg" src="assets/ui/boot_bg.png" alt="" style="display:none" data-fallback="assets/boot_bg.png">
-    <img id="boot-logo" src="assets/ui/boot_logo.png" alt="豌豆镇大冒险" style="display:none" data-fallback="assets/boot_logo.png">
+    <img id="boot-bg" src="assets/ui/boot_bg.jpg" alt="" style="display:none" fetchpriority="high" decoding="async" data-fallback="assets/boot_bg.jpg">
+    <img id="boot-logo" src="assets/ui/boot_logo.png" alt="豌豆镇大冒险" style="display:none" fetchpriority="high" decoding="async" data-fallback="assets/boot_logo.png">
     <div class="logo" id="boot-logo-text">豌豆镇大冒险</div>
     <div class="sub" id="boot-logo-sub">PEA TOWN ROGUE</div>
     <div class="loadbar"><i></i></div>
@@ -166,31 +166,31 @@
 </script>
 
 <!-- 游戏代码：core 先于 scenes，Upgrade/Result 是被动场景，放最后 -->
-<script src="js/core/data.js"></script>
-<script src="js/core/art.js"></script>
-<script src="js/core/sfx.js"></script>
-<script src="js/core/run.js"></script>
-<script src="js/core/meta.js"></script>
-<script src="js/core/boot.js"></script>
-<script src="js/core/devmode.js"></script>
-<script src="js/systems/registry.js"></script>
-<script src="js/ui/skin.js"></script>
-<script src="js/ui/layout.js"></script>
-<script src="js/ui/hud.js"></script>
-<script src="js/ui/avatar.js"></script>
-<script src="js/scenes/Preload.js"></script>
-<script src="js/scenes/Title.js"></script>
-<script src="js/scenes/Game.js"></script>
-<script src="js/ui/upgrade.js"></script>
-<script src="js/ui/pause.js"></script>
-<script src="js/ui/result.js"></script>
-<script src="js/ui/lab.js"></script>
-<script src="js/ui/shop.js"></script>
-<script src="js/ui/leaderboard.js"></script>
-<script src="js/ui/devpanel.js"></script>
-<script src="js/ui/layoutdebug.js"></script>
-<script src="js/ui/changelog.js"></script>
-<script src="js/main.js"></script>
+<script src="js/core/data.js?v=0.8.10"></script>
+<script src="js/core/art.js?v=0.8.10"></script>
+<script src="js/core/sfx.js?v=0.8.10"></script>
+<script src="js/core/run.js?v=0.8.10"></script>
+<script src="js/core/meta.js?v=0.8.10"></script>
+<script src="js/core/boot.js?v=0.8.10"></script>
+<script src="js/core/devmode.js?v=0.8.10"></script>
+<script src="js/systems/registry.js?v=0.8.10"></script>
+<script src="js/ui/skin.js?v=0.8.10"></script>
+<script src="js/ui/layout.js?v=0.8.10"></script>
+<script src="js/ui/hud.js?v=0.8.10"></script>
+<script src="js/ui/avatar.js?v=0.8.10"></script>
+<script src="js/scenes/Preload.js?v=0.8.10"></script>
+<script src="js/scenes/Title.js?v=0.8.10"></script>
+<script src="js/scenes/Game.js?v=0.8.10"></script>
+<script src="js/ui/upgrade.js?v=0.8.10"></script>
+<script src="js/ui/pause.js?v=0.8.10"></script>
+<script src="js/ui/result.js?v=0.8.10"></script>
+<script src="js/ui/lab.js?v=0.8.10"></script>
+<script src="js/ui/shop.js?v=0.8.10"></script>
+<script src="js/ui/leaderboard.js?v=0.8.10"></script>
+<script src="js/ui/devpanel.js?v=0.8.10"></script>
+<script src="js/ui/layoutdebug.js?v=0.8.10"></script>
+<script src="js/ui/changelog.js?v=0.8.10"></script>
+<script src="js/main.js?v=0.8.10"></script>
 <script>
   // 引擎就绪后隐藏启动图
   (function () {

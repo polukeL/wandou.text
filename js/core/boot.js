@@ -38,22 +38,38 @@
     };
     R.game = new Phaser.Game(config);
 
-    /* 看门狗（v0.8.3）：部分手机内核在加载完成后偶发不触发场景切换
-     * （渲染循环暂停/事件丢失等），10 秒后仍在 Preload 且队列已完成
-     * 就强制进入标题页，避免卡在加载界面。 */
-    setTimeout(function () {
+    /* 看门狗（v0.8.3）：部分环境在加载完成后偶发不触发场景切换
+     * （渲染循环暂停/事件丢失/场景创建异常等），导致黑屏或卡在加载界面。
+     * 12 秒后检查：只要没进入标题页且加载队列已完成，就自动恢复
+     * （第一次刷新页面重试，带 recovered 标记防止循环刷新）。
+     * v0.8.4：进入标题页即取消看门狗——之后任何正常的场景切换瞬间
+     * （Title/Game 互相 start/stop）都可能让"当前无活跃场景"短暂成立，
+     * 不能被误判为黑屏而刷新页面。 */
+    var watchdogTimer = setTimeout(function check() {
       try {
+        if (R.watchdogTitleSeen) return;   // 主界面出现过 → 永不干预
         var g = R.game;
         if (!g || !g.scene) return;
         var title = g.scene.getScene('Title');
+        var gameS = g.scene.getScene('Game');
         var pre = g.scene.getScene('Preload');
-        if (title && title.scene.isActive()) return;
-        if (pre && pre.scene.isActive() && pre.load.progress >= 1) {
-          console.warn('[豌豆镇] 看门狗：加载已完成但未进入主界面，强制切换');
-          pre.scene.start('Title');
+        if ((title && title.scene.isActive()) || (gameS && gameS.scene.isActive())) return;
+        // 还在正常加载中（进度未满）则再等等，不干预
+        if (pre && pre.scene.isActive() && pre.load.progress < 1) {
+          watchdogTimer = setTimeout(check, 4000);
+          return;
+        }
+        if (location.search.indexOf('recovered=1') >= 0) {
+          console.warn('[豌豆镇] 看门狗：第二次仍未进入主界面，强制重启标题页');
+          if (pre) pre.scene.stop();
+          g.scene.start('Title');
+        } else {
+          console.warn('[豌豆镇] 看门狗：加载后未进入主界面，自动刷新重试');
+          location.replace(location.pathname + '?recovered=1' + location.hash);
         }
       } catch (e) { /* 静默 */ }
-    }, 10000);
+    }, 12000);
+    R.WATCHDOG_CANCEL = function () { if (watchdogTimer) { clearTimeout(watchdogTimer); watchdogTimer = null; } };
 
     return R.game;
   };
@@ -146,10 +162,18 @@
       return [R.ASSET_DIRS.audio + name + '.mp3',
               R.ASSET_DIRS.audio + name + '.ogg'];
     }
-    // 场景大图（v0.8.2）：png 优先，无 png 时用 jpg（大图导出 JPG 体积小得多）
+    // 场景大图（v0.8.3）：JPG 优先（体积只有 PNG 的十分之一），
+    // 也兼容线上残留的旧 PNG（即使没删掉也能被 JPG 抢先命中）
     if (id === 'tile' || id.indexOf('tile_ch') === 0) {
-      return [R.ASSET_DIRS.world + id + '.png',
-              R.ASSET_DIRS.world + id + '.jpg',
+      return [R.ASSET_DIRS.world + id + '.jpg',
+              R.ASSET_DIRS.world + id + '.png',
+              'assets/' + id + '.jpg',
+              'assets/' + id + '.png'];
+    }
+    // 启动图（v0.8.3）：boot_bg 为 JPG（不透明大图），其余 png 优先
+    if ((R.SCREEN_BG_IDS || []).indexOf(id) >= 0) {
+      return [R.ASSET_DIRS.ui + id + '.png',
+              R.ASSET_DIRS.ui + id + '.jpg',
               'assets/' + id + '.png',
               'assets/' + id + '.jpg'];
     }
@@ -342,7 +366,12 @@
     if (!pending) return;
     console.info('[豌豆镇] 场景大图后台加载中（' + pending + ' 张，不阻塞进入游戏）');
     scene.load.once('complete', function () {
-      R.applyRealArt(scene);
+      // v0.8.3 关键规则：游戏启动后，标题页/战斗页随时可能正在渲染
+      // player、skin、怪物等纹理——任何时刻的 remove 都会让 WebGL 读到
+      // 空 glTexture 而崩溃黑屏。因此这里【只做标记】，真正的替换放在
+      // 场景切换的安全间隙（Title.create / Game.attachFloor 开头，
+      // 此时上一场景已销毁、新场景还没渲染第一帧）。
+      R.TILES_DIRTY = true;
     });
     scene.load.start();
   };
@@ -368,12 +397,20 @@
       // 由各自的场景直接读取，不参与占位图覆盖（避免误删原 key）。
       if ((R.SCREEN_BG_IDS || []).indexOf(a.id) >= 0) return;
       var realKey = a.id + '_real';
-      if (scene.textures.exists(realKey)) {
-        var src = scene.textures.get(realKey).getSourceImage();
-        if (scene.textures.exists(a.id)) scene.textures.remove(a.id);
-        scene.textures.addImage(a.id, src);
-        applied.push(a.id);
+      if (!scene.textures.exists(realKey)) return;
+      var src = scene.textures.get(realKey).getSourceImage();
+      // v0.8.3 修复：优先用 setSource 原地替换纹理源——textures.remove 会
+      // 销毁 WebGL 纹理，如果某场景正在渲染这张图（如战斗中的地面），
+      // 下一帧 batchSprite 读 glTexture 直接崩溃黑屏。setSource 平滑替换。
+      if (scene.textures.exists(a.id)) {
+        var tex = scene.textures.get(a.id);
+        if (tex && tex.setSource) {
+          try { tex.setSource(0, src); applied.push(a.id); return; } catch (e) { /* 回退到 remove */ }
+        }
+        scene.textures.remove(a.id);
       }
+      scene.textures.addImage(a.id, src);
+      applied.push(a.id);
     });
     if (applied.length) {
       console.info('[豌豆镇] 已替换的正式贴图: ' + applied.join(', '));

@@ -22,24 +22,9 @@
     // 1) 纯色铺底：等背景图加载期间不至于露出空白
     this.add.rectangle(w / 2, h / 2, w, h, 0x2b1d2b).setDepth(-3);
 
-    // 2) 背景插画 + 标题 logo（v0.8.3）：优先直接复用 HTML 启动屏已加载的
-    //    <img> 元素（浏览器缓存命中，零等待），第一帧就完整显示。
-    //    注意：不能把 img 元素直接喂给 textures.addImage——它会读 CSS 布局尺寸
-    //    （而非原图 naturalWidth），导致背景被 cover 放大变形；先画到 canvas。
-    function takeDomImage(key, domId) {
-      var el = document.getElementById(domId);
-      if (el && el.complete && el.naturalWidth > 0 && !self.textures.exists(key)) {
-        try {
-          var c = document.createElement('canvas');
-          c.width = el.naturalWidth;
-          c.height = el.naturalHeight;
-          c.getContext('2d').drawImage(el, 0, 0);
-          self.textures.addCanvas(key, c);
-          return true;
-        } catch (e) { return false; }
-      }
-      return false;
-    }
+    // 2) 背景插画 + 标题 logo（v0.8.3）：排进加载队列最前，完成即显示。
+    //    注意：不能复用启动屏 DOM img 转 canvas 纹理——addCanvas 的纹理在
+    //    WebGL 下 glTexture 为 null，渲染时抛错导致黑屏（v0.8.3 修复）。
     function showBg(key) { self._addScreenBg(key); }
     function showLogo() {
       var src = self.textures.get('boot_logo_img').getSourceImage();
@@ -48,39 +33,28 @@
       self.add.image(w / 2, h * 0.14 + lh / 2, 'boot_logo_img')
         .setDisplaySize(lw, lh).setDepth(2);
     }
-    if (takeDomImage('boot_bg_img', 'boot-bg')) showBg('boot_bg_img');
-    if (takeDomImage('boot_logo_img', 'boot-logo')) showLogo();
+    // logo、背景放在整条队列最前 → 慢网下也是最先完成，进度 0% 即可显示
+    var logoUrl = R.RESOLVED && R.RESOLVED['boot_logo'];
+    if (logoUrl) {
+      this.load.image('boot_logo_img', logoUrl);
+      this.load.once('filecomplete-image-boot_logo_img', showLogo);
+    }
+    var bgUrl = (R.RESOLVED && R.RESOLVED['boot_bg']) || 'assets/ui/boot_bg.jpg';
+    this.load.image('boot_bg_img', bgUrl);
+    this.load.once('filecomplete-image-boot_bg_img', function () { showBg('boot_bg_img'); });
 
-    // DOM 图还没就绪（慢网 HTML 阶段没下完）：加载期间持续轮询，
-    // 一旦 HTML 的 <img> 完成就立即显示（通常比 loader 队列更快）
-    var needBg = !this.textures.exists('boot_bg_img');
-    var needLogo = !this.textures.exists('boot_logo_img');
-    if (needBg || needLogo) {
-      var polls = 0;
-      var poll = this.time.addEvent({
-        delay: 120, repeat: 30,
-        callback: function () {
-          polls++;
-          if (needBg && takeDomImage('boot_bg_img', 'boot-bg')) { needBg = false; showBg('boot_bg_img'); }
-          if (needLogo && takeDomImage('boot_logo_img', 'boot-logo')) { needLogo = false; showLogo(); }
-          if ((!needBg && !needLogo) || polls > 30) poll.remove();
-        }
-      });
-    }
-
-    // 队列兜底：DOM 一直没就绪才走 loader（logo 放最前，最先下载）
-    if (needLogo) {
-      var logoUrl = R.RESOLVED && R.RESOLVED['boot_logo'];
-      if (logoUrl) {
-        this.load.image('boot_logo_img', logoUrl);
-        this.load.once('filecomplete-image-boot_logo_img', showLogo);
-      }
-    }
-    if (needBg) {
-      var bgUrl = (R.RESOLVED && R.RESOLVED['boot_bg']) || 'assets/ui/boot_bg.png';
-      this.load.image('boot_bg_img', bgUrl);
-      this.load.once('filecomplete-image-boot_bg_img', function () { showBg('boot_bg_img'); });
-    }
+    // 2.5) 主界面（v0.8.4）场景图与 UI 部件：随游戏分发的固定资源，
+    //      不参与显示回调，只进队列；全部加载失败时 Title 回退旧布局。
+    var T2 = [
+      'title2_avatar', 'title2_info', 'title2_expbg', 'title2_expfill', 'title2_coin', 'title2_coinbg',
+      'title2_sndbg', 'title2_snd_on', 'title2_snd_off', 'title2_label',
+      'title2_bld_lab', 'title2_bld_shop', 'title2_bld_build', 'title2_ic_lab', 'title2_ic_shop',
+      'title2_bottom', 'title2_btn_notice', 'title2_btn_battle', 'title2_btn_rank', 'title2_dot'
+    ];
+    T2.forEach(function (k) {
+      if (!self.textures.exists(k)) self.load.image(k, 'assets/ui/' + k + '.png');
+    });
+    if (!self.textures.exists('title2_bg')) self.load.image('title2_bg', 'assets/ui/title2_bg.jpg');
 
     // 3) 读条（368×40，位于屏幕 81.5% 高度处）
     var barW = 368, barH = 40, barY = h * 0.815;

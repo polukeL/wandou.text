@@ -312,6 +312,12 @@
    * 没有 → TileSprite 平铺程序化占位图 + 章节染色。
    * 父容器 this.floorLayer 负责换章淡入，避免换图时闪一下黑底。 */
   Game.prototype.attachFloor = function (chId, fadeFrom, fadeMs) {
+    // 后台大图在战斗期间就绪时的挂起替换（v0.8.3）：此刻本场景刚开始
+    // 创建、上一局渲染已停止，remove/addImage 是安全的
+    if (R.TILES_DIRTY) {
+      R.TILES_DIRTY = false;
+      try { R.applyRealArt(this); } catch (e) { console.warn('[豌豆镇] 场景图替换失败', e); }
+    }
     if (this.gridTex) { this.gridTex.destroy(); this.gridTex = null; }
     if (this.floorLayer) { this.floorLayer.destroy(); this.floorLayer = null; }
 
