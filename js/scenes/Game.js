@@ -101,6 +101,14 @@
     this.hud = new R.HUD(this);
     this.hud.refresh(this.run);
 
+    // ---- 战斗 UI 编辑模式（v0.8.15，?uiedit=1）----
+    // 所有战斗组件可拖动；同时无敌 + 屏蔽摇杆，专心对位
+    if (/uiedit=1/.test(location.search)) {
+      this.editMode = true;
+      this.devGod = true;
+      this.hud.enableEdit();
+    }
+
     // ---- 粒子/特效层 ----
     this.fxLayer = this.add.container(0, 0).setDepth(30);
 
@@ -140,7 +148,7 @@
     if (!R.Dev || !R.Dev.ENABLED || !R.Dev.hasUrlFlag()) return;
     if (!R.Dev.isUnlocked()) return;
     var p = R.Dev.urlParams();
-    this.devGod = p.god === '1' || p.god === 'true';
+    this.devGod = p.god === '1' || p.god === 'true' || !!this.editMode;   // 编辑模式恒无敌
     if (p.gold) {
       var n = parseInt(p.gold, 10) || 0;
       if (n > 0) { this.run.gold += n; if (R.Meta) R.Meta.addGold(n); }
@@ -410,7 +418,7 @@
     }
 
     this.input.on('pointerdown', function (p) {
-      if (self.paused) return;
+      if (self.paused || self.editMode) return;   // 编辑模式：摇杆禁用，拖 HUD 优先
       R.Sfx.unlock();
       if (self.stick.active) return;
       if (onUI(p.x, p.y)) return;          // 点在 UI 按钮上，不开摇杆

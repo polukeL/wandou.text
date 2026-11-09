@@ -20,9 +20,10 @@
    * ===================================================== */
   var CITY_LS = 'pearogue.citylayout.v3';   // v3：全部组件独立可编辑，旧草稿作废
   var CITY_DEFAULTS = {
-    /* 顶部信息区 */
-    info:        { x: 158, y: 60  },   // 玩家信息底条
-    avatar:      { x: 57,  y: 50  },   // 头像（对准信息底圆形开口中心）
+    /* 顶部信息区（v0.8.13：拆分为名字底条 + 头像 + 头像框） */
+    info:        { x: 204, y: 50, scale: 0.85 },  // 名字信息底条（右端让位金币框）
+    avatar:      { x: 57,  y: 50  },   // 头像图片（框下层，可被商店换装替换）
+    avatar_frame:{ x: 57,  y: 50  },   // 头像框（叠在头像上层，镂空环，可直接替换素材）
     name:        { x: 112, y: 42  },   // 昵称文字
     lv:          { x: 112, y: 80  },   // 等级文字
     exp:         { x: 214, y: 80  },   // 经验条（底+填充）
@@ -196,16 +197,26 @@
     // ---------- 背景：小镇场景图 ----------
     this.add.image(W / 2, H / 2, 'title2_bg').setDisplaySize(W, H).setDepth(-10);
 
-    // ---------- 顶部：玩家信息区（全部组件独立可编辑） ----------
+    // ---------- 顶部：玩家信息区（底条/头像/头像框三层，均可独立编辑） ----------
     var infoP = L.pos('info');
-    var infoImg = this.add.image(infoP.x, infoP.y, 'title2_info').setDepth(5);
+    var infoImg = this.add.image(infoP.x, infoP.y, 'title2_info').setScale(L.scale('info')).setDepth(4);
 
-    // 头像（效果图素材，点击进商店更换）
+    // 头像图片（下层；商店换装后 setTexture 即可替换，被头像框罩住边缘）
     var avP = L.pos('avatar');
-    var av = this.add.image(avP.x, avP.y, 'title2_avatar').setDisplaySize(96, 96).setDepth(6);
+    var av = this.add.image(avP.x, avP.y, 'title2_avatar').setDisplaySize(96, 96).setDepth(5);
     this.hit(av, 96, 96);
     av.on('pointerdown', function () {
       if (edit) return;   // 编辑模式：拖拽优先，不跳转商店
+      R.Sfx.play('click');
+      self.scene.start('Shop', { tab: 'avatar' });
+    });
+
+    // 头像框（上层镂空金环；换框=替换 assets/ui/title2_frame.png）
+    var frP = L.pos('avatar_frame');
+    var frameImg = this.add.image(frP.x, frP.y, 'title2_frame').setDepth(7);
+    this.hit(frameImg, 98, 97);
+    frameImg.on('pointerdown', function () {
+      if (edit) return;
       R.Sfx.play('click');
       self.scene.start('Shop', { tab: 'avatar' });
     });
@@ -339,7 +350,9 @@
       }
       self.hit(b, 150, 130);
       b.on('pointerdown', function () {
-        if (edit) return;
+        // 编辑模式：其余按钮拖拽优先不响应，但「出战」保留点击，
+        // 方便主界面调完后直接进战斗调战斗界面（v0.8.15）
+        if (edit && artKey !== 'title2_btn_battle') return;
         R.Sfx.unlock(); R.Sfx.play('click');
         b.setScale(0.92);
         self.time.delayedCall(90, function () { b.setScale(1); onTap(); });
@@ -376,7 +389,8 @@
 
     // ---------- 拖拽编辑模式（?uiedit=1） ----------
     if (edit) this.enableCityEdit([
-      { key: 'info', obj: infoImg, w: 316, h: 99 },
+      { key: 'info', obj: infoImg, w: 240, h: 84 },
+      { key: 'avatar_frame', obj: frameImg, w: 110, h: 110 },
       { key: 'avatar', obj: av, w: 110, h: 110 },
       { key: 'name', obj: nameText, w: 140, h: 30 },
       { key: 'lv', obj: lvText, w: 70, h: 28 },

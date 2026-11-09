@@ -46,7 +46,10 @@
     // 2.5) 主界面（v0.8.4）场景图与 UI 部件：随游戏分发的固定资源，
     //      不参与显示回调，只进队列；全部加载失败时 Title 回退旧布局。
     var T2 = [
-      'title2_avatar', 'title2_info', 'title2_expbg', 'title2_expfill', 'title2_coin', 'title2_coinbg',
+      'title2_avatar', 'title2_frame', 'title2_info',
+      'battle_timebg', 'battle_clock', 'battle_goldbg', 'battle_coin', 'battle_banner', 'battle_pause',
+      'battle_progbg', 'battle_progfill', 'battle_node_done', 'battle_node_cur', 'battle_node_lock', 'battle_node_boss',
+      'battle_buffbg', 'battle_hpbg', 'battle_hpfill', 'title2_expbg', 'title2_expfill', 'title2_coin', 'title2_coinbg',
       'title2_sndbg', 'title2_snd_on', 'title2_snd_off', 'title2_label',
       'title2_bld_lab', 'title2_bld_shop', 'title2_bld_build', 'title2_ic_lab', 'title2_ic_shop',
       'title2_bottom', 'title2_btn_notice', 'title2_btn_battle', 'title2_btn_rank', 'title2_dot'
@@ -140,13 +143,22 @@
         var left = MIN_SHOW - (Date.now() - (self._bootStart || 0));
         self.time.delayedCall(Math.max(0, left), function () { self.scene.start('Title'); });
       };
-      /* 先把主城布局定稿文件 assets/ui/city-layout.json 读完再进标题页，
-       * 避免 Title 用默认坐标创建后又被文件覆盖而跳动（v0.8.12）。
-       * 网络异常时最多等 1.5 秒兜底。 */
+      /* 先把主城/战斗布局定稿文件（city-layout.json / battle-layout.json）
+       * 读完再进标题页，避免场景用默认坐标创建后又被文件覆盖而跳动
+       * （v0.8.12 / v0.8.15）。网络异常时最多等 1.5 秒兜底。 */
       if (R.CityLayout && R.CityLayout.fetchServer) {
-        R.CityLayout.fetchServer(go);
+        R.CityLayout.fetchServer(function () {
+          if (R.BattleLayout && R.BattleLayout.fetchServer) R.BattleLayout.fetchServer(go);
+          else go();
+        });
         self.time.delayedCall(1500, function () {
-          if (!R.CityLayout._serverLoaded) { R.CityLayout._serverLoaded = true; go(); }
+          var okCity = R.CityLayout._serverLoaded;
+          var okBattle = !R.BattleLayout || R.BattleLayout._serverLoaded;
+          if (!(okCity && okBattle)) {
+            R.CityLayout._serverLoaded = true;
+            if (R.BattleLayout) R.BattleLayout._serverLoaded = true;
+            go();
+          }
         });
       } else { go(); }
     });
