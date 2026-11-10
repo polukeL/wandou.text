@@ -328,7 +328,15 @@
       R.resolveAsset(R.assetPaths(id), function (url) {
         if (url && !finished) R.RESOLVED[id] = url;
         // 超时放行后仍在后台探测：命中就补登记，留给补载机制使用
-        else if (url && finished) { R.RESOLVED[id] = url; R.LATE_ASSETS = (R.LATE_ASSETS || 0) + 1; }
+        else if (url && finished) {
+          R.RESOLVED[id] = url; R.LATE_ASSETS = (R.LATE_ASSETS || 0) + 1;
+          // v0.8.17：迟到的场景大图命中 → 游戏已启动时补进后台加载队列
+          // （此前探测超时放行后没人再调 loadTilesLater，场景图整局缺席）
+          if (/^tile(_ch\d+)?$/.test(id) && R.game && R.game.scene && R.loadTilesLater) {
+            var t = R.game.scene.getScene('Title');
+            if (t) { try { R.loadTilesLater(t); } catch (e) { /* 场景未就绪留给下次 */ } }
+          }
+        }
         left--;
         report();
       });
@@ -387,35 +395,84 @@
     });
   };
 
+  /* 场景大图就绪后的统一处理：置脏标记 + 战斗中即时换图（v0.8.17） */
+  R._onTilesReady = function (scene) {
+    R.TILES_DIRTY = true;
+    // 玩家已在对局中时，场景大图刚下载完就立即换上，不再等到下一次换关
+    // （此前首局全程都是占位地板）。applyRealArt 用 setSource 原地替换
+    // （不销毁纹理），attachFloor 重挂地面层只动 floorLayer 容器，
+    // 对正在渲染的其他对象无影响。
+    try {
+      var g = scene.game ? scene.game.scene.getScene('Game') : null;
+      if (g && g.scene.isActive() && g.scene.isVisible() && g.attachFloor && g.chapterDef) {
+        // 战斗中：先安全注册新纹理（跳过已渲染的），再重挂地面
+        try { R.applyRealArt(g, true); } catch (e) {}
+        R.TILES_DIRTY = false;   // 已消费，attachFloor 不再重复执行替换
+        g.attachFloor(g.chapterDef.id, 0, 400);
+      }
+    } catch (e) { /* 留给下次换关兜底 */ }
+  };
+
+  /* 探测失败（HEAD 超时）≠ 资源不存在。手机弱网下 4 秒 HEAD 超时很常见，
+   * 若因此判定 tile 缺失，玩家整局都是占位地板。这里绕过探测，
+   * 直接用 Image 元素按候选路径盲试加载（同源无 CORS 问题）。 */
+  R._blindLoadTile = function (scene, id, tries) {
+    scene._blindTiles = scene._blindTiles || {};
+    if (scene._blindTiles[id]) return;
+    scene._blindTiles[id] = true;
+    var cands = [R.ASSET_DIRS.world + id + '.jpg', R.ASSET_DIRS.world + id + '.png'];
+    (function tryOne(i) {
+      if (i >= cands.length || scene.textures.exists(id + '_real')) {
+        // 全部候选失败：弱网瞬断可能导致，20 秒后允许再盲试一轮（最多 3 轮）
+        var n = (tries || 0);
+        if (!scene.textures.exists(id + '_real') && n < 2) {
+          setTimeout(function () {
+            scene._blindTiles[id] = false;
+            R._blindLoadTile(scene, id, n + 1);
+          }, 20000);
+        }
+        return;
+      }
+      var img = new Image();
+      img.onload = function () {
+        if (scene.textures.exists(id + '_real')) return;
+        try { scene.textures.addImage(id + '_real', img); R._onTilesReady(scene); }
+        catch (e) { console.warn('[豌豆镇] 场景大图注册失败', id, e); }
+      };
+      img.onerror = function () { tryOne(i + 1); };
+      img.src = cands[i];
+    })(0);
+  };
+
   /* 场景大图后台加载（v0.8.2）：Title 场景创建后调用。
    * 1600×1600 整图体积大，不阻塞任何界面；下载完成后 applyRealArt
    * 用同名 key 覆盖纹理，正在显示/之后进入的对局地面自动换成正式图。
-   * 没加载完之前 Game.attachFloor 会用占位色块兜底，不影响游玩。 */
+   * 没加载完之前 Game.attachFloor 会用占位色块兜底，不影响游玩。
+   * v0.8.17：探测未命中的大图改为盲试真实路径（HEAD 超时不等于不存在）。 */
   R.loadTilesLater = function (scene) {
     var pending = 0;
     R.BIG_TILE_IDS.forEach(function (id) {
       var url = R.RESOLVED[id];
-      if (!url) return;
       var key = id + '_real';
       if (scene.textures.exists(key)) return;
+      if (!url) { R._blindLoadTile(scene, id); pending++; return; }
       scene.load.image(key, url);
       pending++;
     });
     if (!pending) return;
     console.info('[豌豆镇] 场景大图后台加载中（' + pending + ' 张，不阻塞进入游戏）');
     scene.load.once('complete', function () {
-      // v0.8.3 关键规则：游戏启动后，标题页/战斗页随时可能正在渲染
-      // player、skin、怪物等纹理——任何时刻的 remove 都会让 WebGL 读到
-      // 空 glTexture 而崩溃黑屏。因此这里【只做标记】，真正的替换放在
-      // 场景切换的安全间隙（Title.create / Game.attachFloor 开头，
-      // 此时上一场景已销毁、新场景还没渲染第一帧）。
-      R.TILES_DIRTY = true;
+      R._onTilesReady(scene);
     });
     scene.load.start();
   };
 
-  /* 把 assets 下成功加载的真实贴图替换占位图 */
-  R.applyRealArt = function (scene) {
+  /* 把 assets 下成功加载的真实贴图替换占位图。
+   * v0.8.17：skipExisting=true（战斗渲染进行中调用时）——只 addImage
+   * 尚不存在的 key，对已存在的 key 一律跳过：setSource 会把 glTexture
+   * 瞬时置空，撞上渲染帧直接崩溃（v0.8.3 同款坑）。战斗中正在渲染的
+   * 纹理绝不能原地替换。 */
+  R.applyRealArt = function (scene, skipExisting) {
     var defs = (R.DATA.ART || []).slice();
     (R.DATA.SKINS || []).forEach(function (s) { if (s && s.id) defs.push({ id: s.id }); });
     (R.UI_ICONS || []).forEach(function (n) { defs.push({ id: 'icon_' + n }); });
@@ -441,6 +498,7 @@
       // 销毁 WebGL 纹理，如果某场景正在渲染这张图（如战斗中的地面），
       // 下一帧 batchSprite 读 glTexture 直接崩溃黑屏。setSource 平滑替换。
       if (scene.textures.exists(a.id)) {
+        if (skipExisting) return;   // 战斗中：已在渲染的纹理绝不原地替换
         var tex = scene.textures.get(a.id);
         if (tex && tex.setSource) {
           try { tex.setSource(0, src); applied.push(a.id); return; } catch (e) { /* 回退到 remove */ }
