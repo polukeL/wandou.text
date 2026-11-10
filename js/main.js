@@ -100,9 +100,19 @@
     }
     // 先探测 assets/ 下哪些可选素材真的存在（分组目录优先），再启动引擎，
     // 这样 Preload 里加载的都是确定存在的单地址，不会因 404 回退失败。
+    // v0.8.16：探测进度显示到启动屏；慢网（手机流量）下 6 秒仍未完成时
+    // 提示玩家正在加速进入，8 秒总超时强制放行（见 boot.prepareAssets）。
+    var tip = document.querySelector('#boot .loadtip');
+    var slowTipTimer = setTimeout(function () {
+      if (tip && !R.__bootDone) tip.textContent = '网络较慢，正在加速进入...';
+    }, 6000);
     R.prepareAssets(function () {
+      R.__bootDone = true;
+      clearTimeout(slowTipTimer);
       R.boot('game');
       R.emit('boot');
+    }, function (n, total) {
+      if (tip && !R.__bootDone) tip.textContent = '资源准备中 ' + n + '/' + total + ' ...';
     });
   };
 

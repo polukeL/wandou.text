@@ -209,18 +209,21 @@
     } catch (e) { fin(false); }
   };
 
-  /* 按候选顺序找出第一个真实存在的 URL，找不到返回 null */
+  /* 按候选顺序找出第一个真实存在的 URL，找不到返回 null。
+   * v0.8.16：候选路径改为【并行】探测——手机流量下 RTT 高，
+   * 串行探测（每 id 2~4 个候选 × 100~500ms/次）会把启动拖到几十秒，
+   * 还可能触发看门狗误判。并行后先命中先用，候选数不再拖慢启动。 */
   R.resolveAsset = function (paths, done) {
-    var i = 0;
-    function next() {
-      if (i >= paths.length) { done(null); return; }
-      var p = paths[i++];
+    if (!paths.length) { done(null); return; }
+    var left = paths.length, finished = false;
+    paths.forEach(function (p) {
       R.probeUrl(p, function (ok) {
-        if (ok) done(p);
-        else next();
+        if (finished) return;
+        left--;
+        if (ok) { finished = true; done(p); return; }   // 第一个命中立即回报
+        if (left === 0) { finished = true; done(null); }
       });
-    }
-    next();
+    });
   };
 
   /* 精英怪变体清单（v0.8.0）：这些怪出精英时会换 <n>_elite 造型 */
@@ -291,23 +294,43 @@
     return ids;
   };
 
-  /* 并发探测所有候选路径。done() 保证只回调一次 */
-  R.prepareAssets = function (done) {
+  /* 并发探测所有候选路径。done() 保证只回调一次。
+   * v0.8.16：
+   *   · onProg(n, total) —— 探测进度（启动屏显示用）
+   *   · 整体 8 秒总超时：慢网下未探测完的 id 先按「未命中」处理照常启动，
+   *     后台探测继续跑，命中后补进 RESOLVED（下次启动/补载生效）。
+   *     避免极端网络下玩家在启动屏卡几十秒。 */
+  R.prepareAssets = function (done, onProg) {
     var ids = R.realArtKeys();
     var left = ids.length;
     var t0 = (window.performance && performance.now) ? performance.now() : Date.now();
     if (!left) { done(); return; }
+    var finished = false;
+    function report() {
+      if (onProg) { try { onProg(ids.length - left, ids.length); } catch (e) {} }
+      if (left === 0 && !finished) {
+        finished = true;
+        var n = Object.keys(R.RESOLVED).length;
+        var t1 = (window.performance && performance.now) ? performance.now() : Date.now();
+        console.info('[豌豆镇] 资源探测完成：命中 ' + n + '/' + ids.length +
+                     ' 个可选素材（' + Math.round(t1 - t0) + 'ms）');
+        done();
+      }
+    }
+    // 8 秒总超时：放行启动，未完成的探测继续后台跑
+    setTimeout(function () {
+      if (finished) return;
+      finished = true;
+      console.warn('[豌豆镇] 资源探测超时（网络较慢），先进入游戏，其余素材后台继续探测');
+      done();
+    }, 8000);
     ids.forEach(function (id) {
       R.resolveAsset(R.assetPaths(id), function (url) {
-        if (url) R.RESOLVED[id] = url;
+        if (url && !finished) R.RESOLVED[id] = url;
+        // 超时放行后仍在后台探测：命中就补登记，留给补载机制使用
+        else if (url && finished) { R.RESOLVED[id] = url; R.LATE_ASSETS = (R.LATE_ASSETS || 0) + 1; }
         left--;
-        if (left === 0) {
-          var n = Object.keys(R.RESOLVED).length;
-          var t1 = (window.performance && performance.now) ? performance.now() : Date.now();
-          console.info('[豌豆镇] 资源探测完成：命中 ' + n + '/' + ids.length +
-                       ' 个可选素材（' + Math.round(t1 - t0) + 'ms）');
-          done();
-        }
+        report();
       });
     });
   };
@@ -345,8 +368,16 @@
     scene.load.on('loaderror', function (file) {
       var src = (file && file.src ? file.src : '') + '';
       var key = (file && file.key) ? file.key : '';
-      // 只提示正式贴图失败（音效、UI 属于可选资源，404 是正常情况）
-      if (/_real$/.test(key)) failedArt.push(src || key);
+      // 正式贴图失败 → 带时间戳重试一次（手机流量下偶发传输中断，
+      // 不重试就整局用占位图；URL 加 ?ts= 防止命中失败缓存）
+      if (/_real$/.test(key) && !/[\?&]ts=/.test(src) && !scene.textures.exists(key)) {
+        console.warn('[豌豆镇] 贴图加载失败，重试：' + key);
+        scene.load.image(key, src + (src.indexOf('?') >= 0 ? '&' : '?') + 'ts=' + Date.now());
+        scene.load.start();
+        return;
+      }
+      // 音效、UI 属于可选资源，404 是正常情况
+      failedArt.push(src || key);
     });
     scene.load.once('complete', function () {
       if (failedArt.length) {
@@ -424,5 +455,26 @@
     } else {
       console.info('[豌豆镇] 未检测到任何正式贴图（assets/ 下没有可用的 <id>.png，或加载失败）');
     }
+  };
+
+  /* 占位图安全兜底（v0.8.16）：
+   * 极慢网络（手机流量）下，看门狗可能抢在 Preload.create 之前强制进入
+   * 标题页——此时程序化占位图（tile_ph / skin_* / 怪物 / 粒子）还没生成，
+   * 战斗场景里所有对象都渲染成「缺失纹理」（绿网格 + 深色黑方块）。
+   * 这里幂等补生成全部占位图（已存在的 key 自动跳过），在
+   * Title.create / Game.create 开头调用：正常路径零开销，异常路径救场。
+   * 注：g() 内部有 textures.exists 判断，重复调用安全。 */
+  R.ensurePlaceholderArt = function (scene) {
+    if (!R.Art || !scene || scene.textures.exists('tile_ph')) return;
+    console.warn('[豌豆镇] 检测到占位图缺失（加载被打断），现场补生成');
+    try {
+      R.Art.generate(scene);
+      R.Art.generateUI(scene);
+      R.Art.generateObstacles(scene);
+      R.Art.generateSkins(scene);
+      R.Art.generatePet(scene);
+      R.Art.generateProps(scene);
+      R.applyRealArt(scene);
+    } catch (e) { console.warn('[豌豆镇] 占位图补生成异常', e); }
   };
 })(window.RogueGame = window.RogueGame || {});

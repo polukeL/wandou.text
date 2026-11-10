@@ -27,6 +27,9 @@
   /* ---------------- 创建 ---------------- */
   Game.prototype.create = function () {
     var self = this;
+    // 占位图安全兜底（v0.8.16）：极端慢网下 Preload.create 可能被看门狗
+    // 打断——进战斗前补生成缺失占位图，杜绝「绿网格 + 黑方块」缺纹理画面
+    if (R.ensurePlaceholderArt) R.ensurePlaceholderArt(this);
     this.run = new R.Run();
     this.run.roomShown = {};
     this.phase = 'fight';

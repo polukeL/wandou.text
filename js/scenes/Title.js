@@ -151,6 +151,10 @@
     R.watchdogTitleSeen = true;
     if (R.WATCHDOG_CANCEL) R.WATCHDOG_CANCEL();
 
+    // 占位图安全兜底（v0.8.16）：慢网下看门狗可能抢在 Preload.create
+    // 之前强制进本场景——补生成缺失的程序化占位图（幂等，正常时零开销）
+    if (R.ensurePlaceholderArt) R.ensurePlaceholderArt(this);
+
     // 后台贴图挂起替换（v0.8.3）：此刻本场景刚创建、上一场景已销毁、
     // 还没渲染第一帧，替换纹理是安全的，主角/怪物图从这里生效
     if (R.TILES_DIRTY) {
