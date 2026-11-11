@@ -55,7 +55,8 @@
     banner:      { x: 305, y: 145, scale: 0.82 },
     banner_text: { x: 317, y: 146 },
     mute:        { x: 572, y: 140 },
-    /* 波数进度条（底条/填充/节点组三个独立组件） */
+    /* 波数进度条：prog_bg / prog_fill 只调上下（水平自动适配节点）；
+     * 节点为独立组件 node_0~node_3（进入战斗后逐个拖动，拖过才写入布局） */
     prog_bg:   { x: 302, y: 212 },
     prog_fill: { x: 118, y: 212 },
     nodes:     { x: 0,   y: 0 },
@@ -119,6 +120,11 @@
         var p = self.pos(k);
         out[k] = { x: Math.round(p.x), y: Math.round(p.y) };
         if (BATTLE_DEFAULTS[k].scale !== undefined) out[k].scale = self.scale(k);
+      });
+      /* 逐节点布局键（node_0~node_3，v0.8.19）：拖过才导出 */
+      ['node_0', 'node_1', 'node_2', 'node_3'].forEach(function (k) {
+        var d = self.load()[k] || (self._server || {})[k];
+        if (d && d.x !== undefined) out[k] = { x: Math.round(d.x), y: Math.round(d.y) };
       });
       return out;
     },
@@ -367,27 +373,53 @@
 
   /* ---------- 波数进度节点重建 ---------- */
   HUD.prototype.refreshProgress = function (run) {
-    var s = this.scene;
+    var s = this.scene, BL = R.BattleLayout;
     var waveTotal = s.waveTotal || 3;
-    var bossRoom = !!s.isBossRoom;            // BOSS 关：无波次，全部波视为已通过
-    var cur = bossRoom ? waveTotal : (s.wave || 0);   // 当前波（0 基）
-    var n = waveTotal + 1;                    // 波数 + Boss
+    var bossRoom = !!s.isBossRoom;
+    var bossDead = !!s.bossKilled;            // v0.8.18：Boss 击杀后节点变绿
+    var cleared = s.phase === 'clear';        // 清空后全部波视为已通过
+    var cur = bossRoom ? waveTotal : Math.min((s.wave || 0) + (cleared ? 1 : 0), waveTotal);
+    // v0.8.18：Boss 节点只在 BOSS 关显示——普通关进度条只有波节点，
+    // 避免出现「还有个 Boss 没打」的误导（Boss 只在每章第 5 关出现）
+    var n = bossRoom ? waveTotal + 1 : waveTotal;
     var x0 = BP.nodeX0, x1 = BP.nodeX1, y = BP.nodeY;
-    this.nodesC.removeAll(true);
+    // v0.8.19：每个节点都是独立组件——布局键 node_0~node_3（绝对坐标），
+    // 没拖过的节点回退到「base + 旧版整组偏移 nodes」（兼容旧定稿文件）
+    var grp = BL.pos('nodes', 0, 0);
+    var drag = this._nodeDrag;
+    var pos = [];
     for (var i = 0; i < n; i++) {
-      var x = x0 + i * (x1 - x0) / (n - 1);
-      var key, sc = 1;
-      if (i === n - 1) { key = 'battle_node_boss'; }
-      else if (i < cur) { key = 'battle_node_done'; }
-      else if (i === cur && !bossRoom) { key = 'battle_node_cur'; sc = 0.55; }  // 发光剑素材 115px，缩到与 58px 节点同大
-      else { key = 'battle_node_lock'; }
-      this.nodesC.add(s.add.image(x, y, key).setScale(sc));
+      var p;
+      if (drag && drag.idx === i) {
+        p = { x: drag.x, y: drag.y };          // 拖拽中的实时位置
+      } else {
+        var lp = BL.pos('node_' + i, NaN, NaN);
+        if (isFinite(lp.x)) p = { x: lp.x, y: lp.y };
+        else p = { x: x0 + i * (x1 - x0) / (n - 1) + grp.x, y: y + grp.y };
+      }
+      pos.push(p);
     }
-    // 黄色填充：进度条左端 → 当前节点（BOSS 关拉满）
-    // 起点用 progFill 实际位置、终点用节点组实际位置（含拖拽偏移），
-    // 无论填充/节点被拖到哪里，填充都精确连接两端（v0.8.15）
-    var curX = bossRoom ? x1 : x0 + Math.min(cur, n - 1) * (x1 - x0) / (n - 1);
-    var w = Math.max(0, curX + this.nodesC.x - this.progFill.x - 2);
+    this.nodesC.setPosition(0, 0);
+    this.nodesC.removeAll(true);
+    for (i = 0; i < n; i++) {
+      var key, sc = 1;
+      if (bossRoom && i === n - 1) { key = bossDead ? 'battle_node_done' : 'battle_node_boss'; }
+      else if (i < cur) { key = 'battle_node_done'; }
+      else if (i === cur && !cleared && !bossRoom) { key = 'battle_node_cur'; sc = 0.55; }  // 发光剑素材 115px，缩到与 58px 节点同大
+      else { key = 'battle_node_lock'; }
+      if (drag && drag.idx === i) sc *= 1.12;  // 拖拽中的节点微微放大提示
+      this.nodesC.add(s.add.image(pos[i].x, pos[i].y, key).setScale(sc));
+    }
+    this._nodePos = pos;
+
+    // 底条自动适配：中心 = 首末节点中点，宽度到节点外缘为止——无论节点怎么拖，
+    // 底条都不会从左右露出来（v0.8.19）；垂直位置仍走 prog_bg 布局键
+    var first = pos[0], last = pos[n - 1];
+    this.progBg.setPosition((first.x + last.x) / 2, BL.pos('prog_bg', BP.progX, BP.progY).y);
+    this.progBg.setDisplaySize(Math.max(40, last.x - first.x + 58), 14);
+    // 填充：左端锚定首节点圆心 → 右端到当前节点圆心，绝不越过两端（v0.8.19）
+    this.progFill.setPosition(first.x + 1, BL.pos('prog_fill', first.x, y).y);
+    var w = Math.max(0, pos[Math.min(cur, n - 1)].x - first.x - 2);
     this.progFill.setDisplaySize(w, 10);
   };
 
@@ -408,7 +440,7 @@
       var def = null;
       (D.UPGRADES || []).forEach(function (u) { if (u.id === id) def = u; });
       if (!def) return;
-      items.push({ icon: 'icon_' + (def.icon || 'star'), text: def.name + (cnt > 1 ? ' ×' + cnt : '') });
+      items.push({ icon: 'icon_' + (def.icon || 'star'), text: (def.name || def.text || def.id) + (cnt > 1 ? ' ×' + cnt : '') });
     });
     // 3) 诅咒（紫色）
     Object.keys(run.curses || {}).forEach(function (cid) {
@@ -565,8 +597,7 @@
       { key: 'pause',   obj: this.pauseBtn, w: 96, h: 96 },
       { key: 'banner',  obj: this.bannerImg, follow: [['banner_text', this.bannerText]] },
       { key: 'mute',    obj: this.muteBtn,  w: 96, h: 96 },
-      { key: 'prog_bg', obj: this.progBg, w: 410, h: 46,
-        follow: [['prog_fill', this.progFill], ['nodes', this.nodesC]] },
+      { key: 'prog_bg', obj: this.progBg, w: 410, h: 46 },   // 底条水平位置自动适配首末节点，拖拽只调上下
       { key: 'buff_bg', obj: this.buffBg,
         follow: [['buff_title', this.buffTitle], ['buff_items', this.buffC]] },
       /* 成员（可单独微调；命中区=实际内容尺寸，底框空白让给主件） */
@@ -578,8 +609,9 @@
       { key: 'gold_text',  obj: this.goldText },
       { key: 'banner_text', obj: this.bannerText },
       { key: 'buff_title',  obj: this.buffTitle },
-      { key: 'prog_fill', obj: this.progFill, rect: [0, -20, 60, 40] },   // origin 在左端，命中区从原点向右
-      { key: 'nodes',     obj: this.nodesC,   rect: [BP.nodeX0 - 25, BP.nodeY - 32, BP.nodeX1 - BP.nodeX0 + 50, 64] }
+      { key: 'prog_fill', obj: this.progFill, rect: [0, -20, 60, 40] }   // 填充左端自动锚定首节点，拖拽只调上下
+      /* 进度条每个节点（node_0~node_3）单独可拖——节点对象每帧重建，
+       * 不能放进 comps（对象引用会失效），走 _nodeDrag 独立拖拽通道 */
     ];
 
     /* 命中判定：手动屏幕坐标包围盒。
@@ -615,6 +647,14 @@
     var dragCp = null, dragFollow = [], dragOff = { x: 0, y: 0 };
 
     s.input.on('pointerdown', function (p) {
+      // 先试进度条节点（node_0~node_3，每帧重建、独立布局键）
+      var np = self._nodePos || [];
+      for (var i = np.length - 1; i >= 0; i--) {
+        if (Math.abs(p.x - np[i].x) <= 36 && Math.abs(p.y - np[i].y) <= 36) {
+          self._nodeDrag = { idx: i, x: np[i].x, y: np[i].y, offX: np[i].x - p.x, offY: np[i].y - p.y };
+          return;
+        }
+      }
       var cp = hitTest(p);
       if (!cp) return;
       var o = cp.obj;
@@ -628,6 +668,12 @@
     });
 
     s.input.on('pointermove', function (p) {
+      if (self._nodeDrag && p.isDown) {
+        var d = self._nodeDrag;
+        d.x = Math.round(Phaser.Math.Clamp(p.x + d.offX, 0, W));
+        d.y = Math.round(Phaser.Math.Clamp(p.y + d.offY, 0, H));
+        return;
+      }
       if (!dragCp || !p.isDown) return;
       var o = dragCp.obj;
       o.x = Math.round(Phaser.Math.Clamp(p.x + dragOff.x, 0, W));
@@ -638,6 +684,13 @@
     });
 
     s.input.on('pointerup', function () {
+      if (self._nodeDrag) {
+        var d = self._nodeDrag;
+        BL.set('node_' + d.idx, d.x, d.y);
+        self.toast('节点 ' + (d.idx + 1) + ' → ' + d.x + ',' + d.y + '（已保存，底条自动跟随）', H * 0.3);
+        self._nodeDrag = null;
+        return;
+      }
       if (!dragCp) return;
       var cp = dragCp, o = cp.obj;
       dragCp = null;

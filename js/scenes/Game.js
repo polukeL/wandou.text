@@ -512,6 +512,7 @@
     this.waveBreak = false;
     this.waveBreakTimer = 0;
     this.wave = 0;
+    this.bossKilled = false;   // v0.8.18：Boss 节点「已击破」状态，每关重置
 
     // 玩家归位
     this.player.setPosition(ARENA / 2, ARENA / 2);
@@ -556,7 +557,7 @@
     this.waveTarget = Math.max(4, Math.ceil(this.waveBaseTarget * this.waveShare[i]));
     this.waveInterval = this.waveBaseInterval * Math.pow(0.88, i);   // 刷得越来越快
     this.spawnPerTick = D.scaling.spawnCount(run.room) + Math.floor(i / 2);
-    this.eliteChance = this.chapterDef.eliteChance * (1 + i * 0.6);  // 精英越来越多
+    this.eliteChance = this.chapterDef.eliteChance * (1 + i * 0.6 + Math.max(0, run.room - 1) * 0.08);  // 精英越来越多（逐波 + 逐关）
     this.killedThisRoom = 0;
     this.spawnedThisRoom = 0;
     this.waveBreak = false;
@@ -1572,6 +1573,7 @@
   Game.prototype.onBossKilled = function (e) {
     var self = this;
     this.boss = null;
+    this.bossKilled = true;   // v0.8.18：进度条 Boss 节点变「已击破」
     e.dead = true;
     this.explode(e.x, e.y, { r: 220, dmg: 0 }, 0);
     this.burst(e.x, e.y, 0xffd23f, 30);
